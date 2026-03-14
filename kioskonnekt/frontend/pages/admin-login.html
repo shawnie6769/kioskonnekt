@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiosKonnekt — Admin Login</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/kiosk.css">
+</head>
+<body>
+<div class="kiosk-root bg-grid" style="align-items:center;justify-content:center;">
+  <div class="orb orb-blue" style="width:500px;height:500px;bottom:-150px;right:-100px;"></div>
+  <div class="orb orb-teal" style="width:400px;height:400px;top:-100px;left:-100px;"></div>
+
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:28px;padding:52px;width:min(500px,94vw);animation:fadeUp 0.5s ease both;position:relative;z-index:1;">
+    <div style="text-align:center;margin-bottom:36px;">
+      <div class="logo" style="font-size:26px;margin-bottom:6px;"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
+      <div style="font-size:32px;font-weight:800;margin:20px 0 10px;">Admin Portal</div>
+      <p style="color:var(--text2);font-size:15px;">Sign in to access the admissions dashboard</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="field">
+        <label class="field-label" for="username">Username</label>
+        <input type="text" id="username" class="field-input" placeholder="admin" value="admin" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label class="field-label" for="password">Password</label>
+        <input type="password" id="password" class="field-input" placeholder="••••••••" value="kioskonnekt2025" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()" />
+      </div>
+
+      <div style="padding:12px 16px;background:rgba(37,99,235,0.06);border:1px solid rgba(37,99,235,0.2);border-radius:12px;font-size:13px;color:var(--text3);">
+        🔑 Demo credentials: <span class="mono" style="color:var(--text2);">admin / kioskonnekt2025</span>
+      </div>
+
+      <div id="login-error" class="field-error">Invalid username or password. Please try again.</div>
+
+      <button class="btn btn-primary btn-lg btn-full" onclick="login()" id="login-btn">
+        Sign In →
+      </button>
+      <button class="btn btn-ghost btn-md btn-full" onclick="navigateTo('/')">
+        ← Back to Kiosk
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+async function login() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const err = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+
+  if (!username || !password) { err.classList.add('show'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  err.classList.remove('show');
+
+  try {
+    const res = await API.post('/admin/login', { username, password });
+    if (res.success) {
+      sessionStorage.setItem('kk_admin', JSON.stringify(res.user));
+      navigateTo('/admin');
+    } else {
+      throw new Error('Invalid credentials');
+    }
+  } catch(e) {
+    err.textContent = '⚠ ' + (e.message || 'Invalid credentials.');
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Sign In →';
+  }
+}
+</script>
+</body>
+</html>

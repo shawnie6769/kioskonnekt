@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiosKonnekt — AI Interview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/kiosk.css">
+<style>
+#chat-body { scroll-behavior: smooth; }
+.assistant-status {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; margin-bottom: 22px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(17,27,46,0.92), rgba(12,20,35,0.78));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.assistant-status-copy {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.assistant-status-label {
+  font-size: 11px; color: #C4B5FD; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.assistant-status-text {
+  font-size: 14px; color: var(--text2);
+}
+.voice-language-picker {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(17,27,46,0.9);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.voice-language-picker label {
+  font-size: 10px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em;
+}
+.voice-language-picker select {
+  min-width: 150px;
+  padding: 8px 34px 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  outline: none;
+}
+.voice-language-picker select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+.voice-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.voice-picker-wide select {
+  min-width: 240px;
+}
+@media (max-width: 980px) {
+  .interview-header-side {
+    width: 100%;
+    justify-content: space-between;
+    order: 3;
+  }
+  .voice-controls {
+    flex: 1;
+    min-width: 0;
+  }
+  .voice-language-picker {
+    flex: 1;
+  }
+  .voice-language-picker select {
+    min-width: 0;
+    width: 100%;
+  }
+  .voice-picker-wide {
+    flex: 1.25;
+  }
+}
+@media (max-width: 720px) {
+  .voice-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.q-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(37,99,235,0.12); border: 1px solid rgba(37,99,235,0.2);
+  font-size: 11px; color: #93C5FD; font-family: var(--mono); text-transform: uppercase;
+  letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 700;
+}
+.char-count { font-size: 12px; font-family: var(--mono); color: var(--text3); }
+.char-count.warn { color: var(--amber); }
+.q-progress-dot {
+  width: 10px; height: 10px; border-radius: 50%; transition: all 0.3s;
+  background: var(--surface3); border: 1.5px solid var(--border);
+}
+.q-progress-dot.done { background: var(--green); border-color: var(--green); }
+.q-progress-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+</style>
+</head>
+<body>
+<div class="kiosk-root" style="background:var(--bg);">
+
+  <!-- Header -->
+  <header class="kiosk-header" style="height:auto;min-height:72px;flex-wrap:wrap;gap:12px 18px;padding-top:14px;padding-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:20px;">
+      <div class="logo"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
+      <div class="divider" style="width:1px;height:20px;background:var(--border);"></div>
+      <div>
+        <div style="font-size:13px;font-weight:600;" id="header-name">Loading…</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono);" id="header-program"></div>
+      </div>
+    </div>
+
+    <!-- Progress dots + bar -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;" id="q-dots">
+        <!-- populated by JS -->
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono);">Q<span id="q-num">1</span>/<span id="q-total">5</span></span>
+        <div class="progress-track" style="width:180px;">
+          <div class="progress-fill" id="q-progress" style="width:0%;"></div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono);" id="q-pct">0%</span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:16px;align-items:center;" class="interview-header-side">
+      <div class="voice-controls">
+        <div class="voice-language-picker">
+          <label for="voice-language">Language</label>
+          <select id="voice-language" onchange="changeVoiceLanguage(this.value)"></select>
+        </div>
+        <div class="voice-language-picker voice-picker-wide">
+          <label for="voice-name">Voice</label>
+          <select id="voice-name" onchange="changeVoiceName(this.value)"></select>
+        </div>
+      </div>
+      <div class="steps">
+        <div class="step done"><div class="step-num">✓</div></div>
+        <div class="step-line done"></div>
+        <div class="step done"><div class="step-num">✓</div></div>
+        <div class="step-line done"></div>
+        <div class="step active"><div class="step-num">3</div></div>
+        <div class="step-line"></div>
+        <div class="step pending"><div class="step-num">4</div></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Chat body -->
+  <div id="chat-body" class="kiosk-body" style="background:var(--bg2);">
+    <div class="chat-area" id="chat-messages" style="max-width:860px;margin:0 auto;padding-bottom:20px;">
+      <div class="assistant-status">
+        <div id="assistant-hero-orb-wrapper"></div>
+        <div class="assistant-status-copy">
+          <div class="assistant-status-label">Konnekt Voice</div>
+          <div class="assistant-status-text" id="assistant-status-text">Warm voice enabled when your browser provides one.</div>
+        </div>
+      </div>
+      <!-- messages injected here -->
+    </div>
+
+    <!-- Typing indicator -->
+    <div id="typing-row" style="display:none;padding:0 calc((100% - 860px)/2 + 36px) 16px;max-width:860px;margin:0 auto;">
+      <div style="display:flex;align-items:flex-end;gap:14px;padding:0 36px;">
+        <div id="typing-orb-wrapper"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding-left:4px;">Konnekt Voice · preparing the next question…</div>
+          <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input footer -->
+  <div class="kiosk-footer">
+    <div style="max-width:860px;margin:0 auto;">
+      <!-- Input row -->
+      <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px;">
+        <div style="flex:1;position:relative;">
+          <textarea
+            id="chat-input"
+            class="field-textarea"
+            placeholder="Type your answer here… or tap the mic to speak"
+            rows="3"
+            maxlength="1000"
+            style="padding-right:16px;border-radius:16px;"
+            oninput="updateCharCount()"
+            onkeydown="handleKey(event)"
+          ></textarea>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <button class="voice-btn" id="voice-btn" onclick="toggleVoice()" title="Voice input">🎤</button>
+          <span style="font-size:10px;color:var(--text3);font-family:var(--mono);" id="voice-label">VOICE</span>
+        </div>
+        <button class="btn btn-primary btn-lg" id="send-btn" onclick="sendResponse()" style="padding:18px 36px;align-self:flex-end;">
+          Send ↵
+        </button>
+      </div>
+      <!-- Meta row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:var(--text3);">Press Enter to send · Shift+Enter for new line</span>
+        <span class="char-count" id="char-count">0 / 1000</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-cancel" class="modal-overlay">
+  <div class="modal-box" style="text-align:center;">
+    <div style="font-size:64px;margin-bottom:20px;">⚠️</div>
+    <h3 style="font-size:26px;font-weight:700;margin-bottom:12px;">Exit Interview?</h3>
+    <p style="color:var(--text2);font-size:16px;margin-bottom:36px;">Your responses so far will be lost.</p>
+    <div style="display:flex;gap:16px;justify-content:center;">
+      <button class="btn btn-ghost btn-md" onclick="closeModal('modal-cancel')">← Continue</button>
+      <button class="btn btn-danger btn-md" onclick="cancelSession()">Yes, Exit</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+if (!requireSession()) {}
+
+const QUESTIONS = [
+  { label: "Tell us about yourself", text: "Hi, I'm Konnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique." },
+  { label: "Why this program?", text: "Thank you. I'd love to hear more about your academic direction. What made you choose this program at our university, and what about this field feels right for you?" },
+  { label: "Your strengths as a student", text: "That helps a lot. Every student brings different strengths into the classroom. What qualities, habits, or skills help you do your best as a learner?" },
+  { label: "Handling challenges", text: "Let's talk about resilience for a moment. When school becomes difficult or something does not go as planned, how do you usually respond and move forward?" },
+  { label: "Goals after graduation", text: "You're doing well, and this is the last question. Looking ahead, what kind of future are you working toward after graduation, and where would you like to be in the next five to ten years?" }
+];
+
+let state = {
+  interviewId: null,
+  responses: [],
+  currentQ: 0,
+  startTime: Date.now(),
+  inputMethod: 'typed',
+  isLocked: false,
+  lastAiText: ''
+};
+
+// ── Init ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('assistant-hero-orb-wrapper').innerHTML = getAssistantOrbMarkup('speaking');
+  document.getElementById('typing-orb-wrapper').innerHTML = getAssistantOrbMarkup('thinking');
+  populateVoiceLanguageOptions();
+  populateVoiceNameOptions();
+  window.speechSynthesis?.addEventListener('voiceschanged', populateVoiceLanguageOptions, { once: true });
+  window.speechSynthesis?.addEventListener('voiceschanged', populateVoiceNameOptions, { once: true });
+  const applicant = Session.get(SESSION.APPLICANT);
+  if (!applicant) { navigateTo('/'); return; }
+
+  document.getElementById('header-name').textContent = applicant.full_name;
+  document.getElementById('header-program').textContent = applicant.program;
+  document.getElementById('q-total').textContent = QUESTIONS.length;
+
+  // Render dots
+  const dots = document.getElementById('q-dots');
+  QUESTIONS.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'q-progress-dot';
+    d.id = `dot-${i}`;
+    if (i === 0) d.classList.add('active');
+    dots.appendChild(d);
+  });
+
+  // Create interview record
+  try {
+    const res = await API.post('/interviews', { applicant_id: applicant.id, total_questions: QUESTIONS.length });
+    if (res.success) {
+      state.interviewId = res.data.id;
+      Session.set(SESSION.INTERVIEW, res.data);
+    }
+  } catch(e) { state.interviewId = 'local-' + Date.now(); }
+
+  // Load voices then ask first question
+  if (speechSynthesis.getVoices().length === 0) {
+    speechSynthesis.addEventListener('voiceschanged', () => askQuestion(0));
+  } else {
+    setTimeout(() => askQuestion(0), 500);
+  }
+});
+
+window.addEventListener('kk:tts-state', (event) => {
+  const status = document.getElementById('assistant-status-text');
+  if (!status) return;
+
+  if (event.detail?.speaking) {
+    setAssistantMode('speaking');
+    const voiceName = event.detail.voice ? ` with ${event.detail.voice}` : '';
+    const localeLabel = SpeechSettings.getLabel(event.detail.locale);
+    status.textContent = `Speaking in ${localeLabel}${voiceName}.`;
+    return;
+  }
+
+  if (document.body.classList.contains('assistant-thinking') || document.body.classList.contains('assistant-listening')) return;
+  setAssistantMode('idle');
+  status.textContent = `${SpeechSettings.getLabel()} selected for voice playback.`;
+});
+
+window.addEventListener('kk:voice-language-change', (event) => {
+  const status = document.getElementById('assistant-status-text');
+  if (!status) return;
+  const label = event.detail?.label || SpeechSettings.getLabel();
+  status.textContent = `${label} selected for voice playback and speech input.`;
+  populateVoiceNameOptions();
+});
+
+window.addEventListener('kk:voice-name-change', (event) => {
+  const status = document.getElementById('assistant-status-text');
+  if (!status) return;
+  const label = event.detail?.label || SpeechSettings.getVoiceLabel();
+  status.textContent = `${label} selected for voice playback.`;
+});
+
+function setAssistantMode(mode) {
+  document.body.classList.remove('assistant-speaking', 'assistant-thinking', 'assistant-listening');
+  if (mode && mode !== 'idle') document.body.classList.add(`assistant-${mode}`);
+}
+
+function populateVoiceLanguageOptions() {
+  const select = document.getElementById('voice-language');
+  if (!select) return;
+
+  const currentLocale = SpeechSettings.getLocale();
+  select.innerHTML = SpeechSettings.getOptions()
+    .map(option => `<option value="${option.value}">${option.label}</option>`)
+    .join('');
+  select.value = currentLocale;
+}
+
+function populateVoiceNameOptions() {
+  const select = document.getElementById('voice-name');
+  if (!select) return;
+
+  const currentVoiceName = SpeechSettings.getVoiceName();
+  select.innerHTML = SpeechSettings.getVoiceOptions()
+    .map(option => `<option value="${option.value}">${option.label}${option.quality ? ` · ${option.quality}` : ''}</option>`)
+    .join('');
+  select.value = currentVoiceName;
+}
+
+function changeVoiceLanguage(value) {
+  const locale = SpeechSettings.setLocale(value);
+  const select = document.getElementById('voice-language');
+  if (select && select.value !== locale) select.value = locale;
+  const voiceSelect = document.getElementById('voice-name');
+  if (voiceSelect) voiceSelect.value = 'auto';
+
+  if (STT.isRecording) {
+    STT.stop();
+    document.getElementById('voice-btn').classList.remove('recording');
+    document.getElementById('voice-btn').innerHTML = '🎤';
+    document.getElementById('voice-label').textContent = 'VOICE';
+    setAssistantMode('idle');
+  }
+
+  if (state.lastAiText) {
+    TTS.speak(state.lastAiText, {
+      onEnd: () => { state.isLocked = false; }
+    });
+  }
+}
+
+function changeVoiceName(value) {
+  const nextName = SpeechSettings.setVoiceName(value);
+  const select = document.getElementById('voice-name');
+  if (select && select.value !== nextName) select.value = nextName;
+
+  if (state.lastAiText) {
+    TTS.speak(state.lastAiText, {
+      onEnd: () => { state.isLocked = false; }
+    });
+  }
+}
+
+// ── Ask question ──────────────────────────────────────────
+function askQuestion(idx) {
+  if (idx >= QUESTIONS.length) { finishInterview(); return; }
+  state.currentQ = idx;
+  state.isLocked = true;
+  updateProgress(idx);
+  setAssistantMode('thinking');
+  document.getElementById('assistant-status-text').textContent = 'Preparing the next question for you.';
+  showTyping(true);
+
+  const delay = 1000 + Math.random() * 700;
+  setTimeout(() => {
+    showTyping(false);
+    const q = QUESTIONS[idx];
+    state.lastAiText = q.text;
+    addBubble('ai', q.text, q.label, idx);
+    TTS.speak(q.text, () => { state.isLocked = false; });
+    document.getElementById('chat-input').focus();
+  }, delay);
+}
+
+// ── Add chat bubble ───────────────────────────────────────
+function addBubble(type, text, label, idx) {
+  const container = document.getElementById('chat-messages');
+  const row = document.createElement('div');
+  row.className = `chat-row ${type}`;
+
+  const ts = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+
+  if (type === 'ai') {
+    row.innerHTML = `
+      ${getAssistantOrbMarkup()}
+      <div>
+        <div class="q-chip">Q${idx + 1} · ${label}</div>
+        <div class="bubble bubble-ai">${text}</div>
+        <div class="bubble-meta">${ts} · Konnekt Voice</div>
+      </div>
+    `;
+  } else {
+    const method = state.inputMethod === 'voice' ? '🎤 Voice' : '⌨️ Typed';
+    row.innerHTML = `
+      <div>
+        <div class="bubble bubble-user">${text}</div>
+        <div class="bubble-meta">${ts} · ${method} · ${text.trim().split(/\s+/).length} words</div>
+      </div>
+    `;
+  }
+  container.appendChild(row);
+  scrollChat();
+}
+
+function showTyping(show) {
+  const row = document.getElementById('typing-row');
+  row.style.display = show ? 'block' : 'none';
+  if (show) setAssistantMode('thinking');
+  if (show) scrollChat();
+}
+
+function scrollChat() {
+  const body = document.getElementById('chat-body');
+  setTimeout(() => body.scrollTop = body.scrollHeight, 50);
+}
+
+// ── Send response ─────────────────────────────────────────
+async function sendResponse() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text || state.responses.length >= QUESTIONS.length) return;
+
+  const qIdx = state.responses.length;
+  const q = QUESTIONS[qIdx];
+
+  TTS.stop();
+  addBubble('user', text);
+  input.value = '';
+  updateCharCount();
+  document.getElementById('send-btn').disabled = true;
+
+  const response = {
+    question_index: qIdx,
+    question_label: q.label,
+    question_text: q.text,
+    answer_text: text,
+    input_method: state.inputMethod
+  };
+  state.responses.push(response);
+  state.inputMethod = 'typed'; // reset
+
+  // Save to API
+  if (state.interviewId) {
+    try {
+      await API.post(`/interviews/${state.interviewId}/responses`, {
+        applicant_id: Session.get(SESSION.APPLICANT).id,
+        ...response
+      });
+    } catch(e) {}
+  }
+
+  // Dot done
+  document.getElementById(`dot-${qIdx}`)?.classList.replace('active', 'done');
+
+  setTimeout(() => {
+    document.getElementById('send-btn').disabled = false;
+    const nextIdx = state.responses.length;
+    if (nextIdx < QUESTIONS.length) askQuestion(nextIdx);
+    else finishInterview();
+  }, 400);
+}
+
+// ── Finish ────────────────────────────────────────────────
+async function finishInterview() {
+  state.isLocked = true;
+  updateProgress(QUESTIONS.length);
+  showTyping(true);
+
+  const applicant = Session.get(SESSION.APPLICANT);
+  const name = applicant?.full_name?.split(' ')[0] || 'there';
+  const duration = Math.round((Date.now() - state.startTime) / 1000);
+
+  setTimeout(() => {
+    showTyping(false);
+    const msg = `Excellent work, ${name}! 🎉 You've completed all ${QUESTIONS.length} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
+    state.lastAiText = msg;
+    addBubble('ai', msg, 'Interview Complete', QUESTIONS.length);
+    document.getElementById('assistant-status-text').textContent = 'Wrapping up your interview and getting the summary ready.';
+    TTS.speak(msg);
+
+    // Mark complete
+    if (state.interviewId && !state.interviewId.startsWith('local')) {
+      API.patch(`/interviews/${state.interviewId}/complete`, {
+        questions_answered: QUESTIONS.length,
+        duration_seconds: duration
+      }).catch(() => {});
+    }
+    if (applicant?.id) {
+      API.patch(`/applicants/${applicant.id}/status`, { status: 'completed' }).catch(() => {});
+    }
+
+    Session.set(SESSION.RESPONSES, state.responses);
+    document.getElementById('send-btn').textContent = 'View Summary →';
+    document.getElementById('send-btn').onclick = () => navigateTo('/summary');
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('chat-input').disabled = true;
+    document.getElementById('chat-input').placeholder = 'Interview complete! Tap "View Summary" to continue.';
+    document.getElementById('voice-btn').disabled = true;
+  }, 1800);
+}
+
+// ── Progress ──────────────────────────────────────────────
+function updateProgress(idx) {
+  const done = Math.min(idx, QUESTIONS.length);
+  const pct = Math.round((done / QUESTIONS.length) * 100);
+  document.getElementById('q-progress').style.width = pct + '%';
+  document.getElementById('q-num').textContent = Math.min(idx + 1, QUESTIONS.length);
+  document.getElementById('q-pct').textContent = pct + '%';
+}
+
+// ── Voice ─────────────────────────────────────────────────
+let sttAccumulated = '';
+function toggleVoice() {
+  if (STT.isRecording) {
+    STT.stop();
+    state.inputMethod = 'voice';
+    setAssistantMode('idle');
+    document.getElementById('voice-btn').classList.remove('recording');
+    document.getElementById('voice-btn').innerHTML = '🎤';
+    document.getElementById('voice-label').textContent = 'VOICE';
+    document.getElementById('assistant-status-text').textContent = 'Voice capture paused. You can review the transcript before sending.';
+    return;
+  }
+  TTS.stop();
+  setAssistantMode('listening');
+  document.getElementById('assistant-status-text').textContent = `Listening for your answer in ${SpeechSettings.getLabel()}.`;
+  sttAccumulated = document.getElementById('chat-input').value;
+  const started = STT.start(
+    (final, interim) => {
+      const input = document.getElementById('chat-input');
+      if (final) {
+        sttAccumulated += (sttAccumulated ? ' ' : '') + final.trim();
+        input.value = sttAccumulated;
+      } else {
+        input.value = sttAccumulated + (sttAccumulated && interim ? ' ' : '') + interim;
+      }
+      updateCharCount();
+    },
+    () => {
+      setAssistantMode('idle');
+      document.getElementById('voice-btn').classList.remove('recording');
+      document.getElementById('voice-btn').innerHTML = '🎤';
+      document.getElementById('voice-label').textContent = 'VOICE';
+      document.getElementById('assistant-status-text').textContent = `${SpeechSettings.getLabel()} selected for voice playback.`;
+    }
+  );
+  if (started) {
+    document.getElementById('voice-btn').classList.add('recording');
+    document.getElementById('voice-btn').innerHTML = '⏹';
+    document.getElementById('voice-label').textContent = 'STOP';
+  } else {
+    setAssistantMode('idle');
+    document.getElementById('assistant-status-text').textContent = 'Speech recognition is not available in this browser.';
+    alert('Speech recognition is not supported in this browser. Please type your response.');
+  }
+}
+
+// ── Char count ────────────────────────────────────────────
+function updateCharCount() {
+  const len = document.getElementById('chat-input').value.length;
+  const el = document.getElementById('char-count');
+  el.textContent = `${len} / 1000`;
+  el.classList.toggle('warn', len > 800);
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendResponse(); }
+}
+</script>
+</body>
+</html>
