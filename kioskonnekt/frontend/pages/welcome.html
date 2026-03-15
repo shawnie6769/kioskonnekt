@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiosKonnekt — University Admissions</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/kiosk.css">
+</head>
+<body>
+<div class="kiosk-root bg-grid" style="display:flex;flex-direction:column;">
+  <!-- Background orbs -->
+  <div class="orb orb-blue" style="width:800px;height:800px;top:-300px;right:-200px;"></div>
+  <div class="orb orb-teal" style="width:600px;height:600px;bottom:-200px;left:-150px;"></div>
+
+  <!-- Top bar -->
+  <header style="flex-shrink:0;padding:28px 40px;display:flex;align-items:center;justify-content:space-between;z-index:10;">
+    <div>
+      <div class="logo"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
+      <div class="logo-tag">AI Admissions System v2.0</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="dot-live"></div>
+      <span style="font-size:13px;color:var(--text3);font-family:var(--mono);" id="clock"></span>
+    </div>
+  </header>
+
+  <!-- Hero center -->
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1;" class="hero-section">
+    <div style="text-align:center;max-width:760px;">
+
+      <!-- AI avatar -->
+      <div style="position:relative;display:inline-block;margin-bottom:44px;" class="anim-fade-up">
+        <!-- Online badge -->
+        <div id="welcome-orb"></div>
+        <div style="position:absolute;bottom:8px;right:8px;background:var(--green);border:3px solid var(--bg);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;">✓</div>
+      </div>
+
+      <div style="font-size:13px;color:var(--accent-bright);text-transform:uppercase;letter-spacing:0.14em;font-weight:700;font-family:var(--mono);margin-bottom:18px;" class="anim-fade-up anim-delay-1">
+        University Admissions Kiosk
+      </div>
+
+      <h1 style="font-size:64px;font-weight:900;line-height:1.05;letter-spacing:-0.03em;margin-bottom:20px;" class="anim-fade-up anim-delay-2">
+        Welcome to Your<br>
+        <span style="background:linear-gradient(90deg,#2563EB,#0EA5E9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">AI Interview</span>
+      </h1>
+
+      <p style="font-size:19px;color:var(--text2);line-height:1.7;margin-bottom:52px;font-weight:300;" class="anim-fade-up anim-delay-3">
+        Hello, incoming freshman! KiosKonnekt will guide you through your admissions interview.<br>This should take approximately <strong style="color:var(--text);font-weight:600;">10–15 minutes</strong> to complete.
+      </p>
+
+<style>
+.kiosk-root { display: flex; flex-direction: column; min-height: 100vh; overflow: auto; }
+.hero-section { padding: 40px 20px; }
+.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 768px) {
+  .hero-section { padding: 20px 16px; }
+  h1 { font-size: 44px !important; }
+  p { font-size: 16px !important; }
+  .steps-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .hero-section { padding: 16px 12px; }
+  h1 { font-size: 32px !important; }
+  p { font-size: 14px !important; }
+  .steps-grid { grid-template-columns: 1fr; }
+}
+</style>
+      <!-- Steps overview -->
+      <div class="steps-grid anim-fade-up anim-delay-4" style="margin-bottom:52px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 16px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">📝</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Profile</div>
+          <div style="font-size:12px;color:var(--text3);">Enter your information</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 16px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">📷</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Documents</div>
+          <div style="font-size:12px;color:var(--text3);">Scan your requirements</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 16px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">🎤</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Interview</div>
+          <div style="font-size:12px;color:var(--text3);">Answer AI questions</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 16px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">✅</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Submit</div>
+          <div style="font-size:12px;color:var(--text3);">Review and confirm</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;justify-content:center;align-items:center;">
+        <button class="btn btn-primary btn-lg" onclick="navigateTo('/profile')">
+          Begin Interview <span style="font-size:20px;">→</span>
+        </button>
+        <button class="btn btn-ghost btn-md" onclick="navigateTo('/admin/login')">
+          🔐 Admin Portal
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer style="flex-shrink:0;padding:24px 40px;text-align:center;font-size:12px;color:var(--text3);font-family:var(--mono);border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+    KiosKonnekt v2.0 · AI-Powered University Admissions System · Touch the screen to begin
+  </footer>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  startClock('clock');
+  document.getElementById('welcome-orb').innerHTML = getAssistantOrbMarkup('hero speaking');
+  Session.clear(); // fresh start on welcome
+</script>
+</body>
+</html>

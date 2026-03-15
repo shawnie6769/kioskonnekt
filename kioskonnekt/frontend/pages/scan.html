@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiosKonnekt — Document Scanning</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/kiosk.css">
+<style>
+.kiosk-root { min-height: 100vh; overflow: auto; }
+.kiosk-body { overflow: auto; }
+.cam-frame {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  aspect-ratio: 4/3;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 300px;
+}
+@media (max-width: 768px) {
+  .document-layout { grid-template-columns: 1fr !important; }
+  .cam-frame { min-height: 250px; }
+}
+@media (max-width: 480px) {
+  .cam-frame { min-height: 200px; }
+  .kiosk-body { padding: 12px 12px !important; }
+}
+.cam-corners::before, .cam-corners::after,
+.cam-frame-inner::before, .cam-frame-inner::after {
+  content: ''; position: absolute; width: 28px; height: 28px;
+  border-color: var(--accent); border-style: solid;
+  pointer-events: none; z-index: 5;
+}
+.cam-corners::before { top: 12px; left: 12px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+.cam-corners::after  { top: 12px; right: 12px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.cam-frame-inner::before { bottom: 12px; left: 12px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.cam-frame-inner::after  { bottom: 12px; right: 12px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+.scan-line {
+  position: absolute; left: 12px; right: 12px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  box-shadow: 0 0 8px var(--teal);
+  animation: scanMove 2.5s ease-in-out infinite;
+  z-index: 4;
+}
+@keyframes scanMove {
+  0% { top: 15%; }
+  50% { top: 80%; }
+  100% { top: 15%; }
+}
+</style>
+</head>
+<body>
+<div class="kiosk-root">
+  <div class="orb orb-teal" style="width:500px;height:500px;top:-150px;right:-100px;"></div>
+
+  <header class="kiosk-header">
+    <div class="logo"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
+    <div class="steps">
+      <div class="step done"><div class="step-num">✓</div><span class="step-label">Profile</span></div>
+      <div class="step-line done"></div>
+      <div class="step active"><div class="step-num">2</div><span class="step-label">Documents</span></div>
+      <div class="step-line"></div>
+      <div class="step pending"><div class="step-num">3</div><span class="step-label">Interview</span></div>
+      <div class="step-line"></div>
+      <div class="step pending"><div class="step-num">4</div><span class="step-label">Summary</span></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="confirmCancel()">✕ Cancel</button>
+  </header>
+
+  <div class="kiosk-body" style="background:var(--bg2);">
+    <div style="max-width:1100px;margin:0 auto;padding:36px 32px;" class="anim-fade-up">
+
+      <div style="margin-bottom:28px;">
+        <div class="section-eyebrow" style="color:var(--teal);margin-bottom:10px;">Step 2 of 4</div>
+        <h2 style="font-size:36px;font-weight:800;letter-spacing:-0.02em;">Document Scanning</h2>
+        <p style="color:var(--text2);margin-top:8px;font-size:15px;">Select a document type, then capture it using the camera below.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:32px;align-items:start;" class="document-layout">
+        <!-- Camera panel -->
+        <div>
+          <!-- Camera frame -->
+          <div class="cam-frame cam-corners cam-frame-inner" id="cam-frame">
+            <video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:none;"></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+            <img id="preview" src="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+
+            <div id="cam-placeholder" style="text-align:center;color:var(--text3);padding:32px;flex-direction:column;display:flex;align-items:center;gap:12px;">
+              <div style="font-size:56px;">📷</div>
+              <div style="font-size:16px;font-weight:500;color:var(--text2);">Camera Preview</div>
+              <div style="font-size:13px;">Select a document, then tap "Start Camera"</div>
+            </div>
+
+            <div id="scan-line" class="scan-line" style="display:none;"></div>
+
+            <!-- OCR overlay -->
+            <div id="ocr-overlay" style="display:none;position:absolute;inset:0;background:rgba(16,185,129,0.08);border:2px solid var(--green);border-radius:20px;align-items:center;justify-content:center;z-index:6;">
+              <div style="background:rgba(16,185,129,0.9);color:#fff;padding:12px 24px;border-radius:12px;font-size:16px;font-weight:700;">
+                ✓ Document Detected — OCR Complete
+              </div>
+            </div>
+          </div>
+
+          <!-- Camera controls -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+            <button class="btn btn-ghost btn-md btn-full" id="btn-start-cam" onclick="startCamera()">
+              📷 Start Camera
+            </button>
+            <button class="btn btn-primary btn-md btn-full" id="btn-capture" onclick="captureDoc()" disabled>
+              ⚡ Capture
+            </button>
+          </div>
+
+          <!-- Selected doc indicator -->
+          <div id="selected-indicator" style="margin-top:14px;padding:12px 16px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);font-size:14px;color:var(--text3);text-align:center;">
+            No document selected
+          </div>
+        </div>
+
+        <!-- Document checklist -->
+        <div>
+          <div class="section-eyebrow" style="color:var(--text3);margin-bottom:16px;">Required Documents</div>
+
+          <div style="display:flex;flex-direction:column;gap:12px;" id="doc-list">
+            <div class="doc-card" id="doc-0" onclick="selectDoc(0,'PSA Birth Certificate','psa_birth_cert','🪪')">
+              <div style="font-size:36px;">🪪</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">PSA Birth Certificate</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Philippine Statistics Authority</div>
+              </div>
+              <div id="doc-0-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-1" onclick="selectDoc(1,'Form 138 (Report Card)','form_138','📋')">
+              <div style="font-size:36px;">📋</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">Form 138 — Report Card</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Senior High School Grades</div>
+              </div>
+              <div id="doc-1-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-2" onclick="selectDoc(2,'Good Moral Certificate','good_moral','📜')">
+              <div style="font-size:36px;">📜</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">Good Moral Certificate</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Issued by your school</div>
+              </div>
+              <div id="doc-2-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div style="margin-top:24px;padding:20px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <span style="font-size:13px;color:var(--text2);font-weight:500;">Scanning Progress</span>
+              <span class="mono" style="font-size:13px;color:var(--text3);" id="scan-count-text">0 / 3</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="scan-progress" style="width:0%;"></div>
+            </div>
+            <div style="font-size:12px;color:var(--text3);margin-top:8px;" id="scan-status-msg">
+              Please scan at least one document to continue.
+            </div>
+          </div>
+
+          <!-- Thumbnail strip -->
+          <div id="thumb-strip" style="display:none;margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:16px;justify-content:flex-end;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">
+        <button class="btn btn-outline btn-md" onclick="navigateTo('/profile')">← Back</button>
+        <button class="btn btn-ghost btn-md" onclick="skipDocs()" style="color:var(--text3);">Skip for now</button>
+        <button class="btn btn-primary btn-lg" id="btn-next" onclick="proceedToInterview()" disabled>
+          Start Interview →
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-cancel" class="modal-overlay">
+  <div class="modal-box" style="text-align:center;">
+    <div style="font-size:64px;margin-bottom:20px;">⚠️</div>
+    <h3 style="font-size:26px;font-weight:700;margin-bottom:12px;">Cancel Interview?</h3>
+    <p style="color:var(--text2);font-size:16px;margin-bottom:36px;">Your progress will not be saved.</p>
+    <div style="display:flex;gap:16px;justify-content:center;">
+      <button class="btn btn-ghost btn-md" onclick="closeModal('modal-cancel')">← Keep Going</button>
+      <button class="btn btn-danger btn-md" onclick="cancelSession()">Yes, Exit</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+if (!requireSession()) {}
+
+let stream = null;
+let selectedDoc = null;
+const captured = [null, null, null];
+let capturedCount = 0;
+
+function selectDoc(idx, label, type, icon) {
+  document.querySelectorAll('.doc-card').forEach((c, i) => {
+    c.classList.remove('selected');
+    if (i === idx && !captured[idx]) c.classList.add('selected');
+  });
+  selectedDoc = { idx, label, type, icon };
+  document.getElementById('selected-indicator').innerHTML =
+    `<strong>${icon} ${label}</strong> selected — ready to capture`;
+  document.getElementById('selected-indicator').style.color = 'var(--text2)';
+  document.getElementById('selected-indicator').style.borderColor = 'var(--accent)';
+}
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 1280, height: 720 } });
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('cam-placeholder').style.display = 'none';
+    document.getElementById('preview').style.display = 'none';
+    document.getElementById('scan-line').style.display = 'block';
+    document.getElementById('btn-capture').disabled = false;
+  } catch(e) {
+    enableDemoMode();
+  }
+}
+
+function enableDemoMode() {
+  const ph = document.getElementById('cam-placeholder');
+  ph.innerHTML = `
+    <div style="font-size:48px;margin-bottom:12px;">🖼️</div>
+    <div style="font-size:15px;font-weight:600;color:var(--teal);">Demo Mode Active</div>
+    <div style="font-size:13px;margin-top:6px;">Camera unavailable. Click Capture to simulate a scan.</div>
+  `;
+  ph.style.display = 'flex';
+  document.getElementById('btn-capture').disabled = false;
+  document.getElementById('scan-line').style.display = 'block';
+}
+
+async function captureDoc() {
+  if (!selectedDoc) { alert('Please select a document first!'); return; }
+  const { idx, label, type } = selectedDoc;
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const preview = document.getElementById('preview');
+  let imageData;
+
+  if (video.style.display !== 'none' && video.srcObject) {
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    imageData = canvas.toDataURL('image/jpeg', 0.75);
+  } else {
+    // Simulate
+    const c = document.createElement('canvas');
+    c.width = 1280; c.height = 720;
+    const ctx = c.getContext('2d');
+    const grad = ctx.createLinearGradient(0,0,1280,720);
+    grad.addColorStop(0, '#080D17'); grad.addColorStop(1, '#0C1423');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,1280,720);
+    ctx.strokeStyle = 'rgba(37,99,235,0.3)'; ctx.lineWidth = 2;
+    for(let x=0;x<1280;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,720);ctx.stroke();}
+    for(let y=0;y<720;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1280,y);ctx.stroke();}
+    ctx.fillStyle = 'rgba(37,99,235,0.08)'; ctx.fillRect(140,80,1000,560);
+    ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 3; ctx.strokeRect(140,80,1000,560);
+    ctx.fillStyle = '#EFF6FF'; ctx.font = 'bold 42px Outfit,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, 640, 340);
+    ctx.fillStyle = '#4E6E92'; ctx.font = '24px Space Mono,monospace';
+    ctx.fillText('Simulated Document Capture', 640, 400);
+    ctx.fillText(new Date().toLocaleString('en-PH'), 640, 450);
+    imageData = c.toDataURL('image/jpeg', 0.75);
+  }
+
+  captured[idx] = { label, type, imageData };
+  capturedCount = captured.filter(Boolean).length;
+
+  // Save to API
+  const applicant = Session.get(SESSION.APPLICANT);
+  try {
+    await API.post('/documents', {
+      applicant_id: applicant.id,
+      document_type: type,
+      document_label: label,
+      image_data: imageData
+    });
+  } catch(e) {}
+
+  // Update UI
+  preview.src = imageData;
+  preview.style.display = 'block';
+  if (video.style.display !== 'none') video.style.display = 'none';
+  document.getElementById('scan-line').style.display = 'none';
+
+  // OCR simulation
+  const overlay = document.getElementById('ocr-overlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => { overlay.style.display = 'none'; }, 2500);
+
+  // Update status
+  const statusEl = document.getElementById(`doc-${idx}-status`);
+  statusEl.textContent = '✓';
+  statusEl.style.color = 'var(--green)';
+  const card = document.getElementById(`doc-${idx}`);
+  card.classList.remove('selected'); card.classList.add('captured');
+
+  // Thumbnail
+  const strip = document.getElementById('thumb-strip');
+  strip.style.display = 'flex';
+  const thumb = document.createElement('div');
+  thumb.style.cssText = 'position:relative;width:72px;height:54px;border-radius:8px;overflow:hidden;border:2px solid var(--green);';
+  thumb.innerHTML = `<img src="${imageData}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:9px;color:#fff;text-align:center;padding:2px;">✓</div>`;
+  strip.appendChild(thumb);
+
+  // Progress
+  const pct = Math.round((capturedCount / 3) * 100);
+  document.getElementById('scan-progress').style.width = pct + '%';
+  document.getElementById('scan-count-text').textContent = `${capturedCount} / 3`;
+  document.getElementById('scan-status-msg').textContent = capturedCount === 3
+    ? '✅ All documents scanned! You may now proceed.'
+    : `${3 - capturedCount} more document(s) to scan.`;
+
+  if (capturedCount > 0) document.getElementById('btn-next').disabled = false;
+  selectedDoc = null;
+  document.getElementById('selected-indicator').textContent = 'Document captured! Select next or proceed.';
+  document.getElementById('selected-indicator').style.color = 'var(--green)';
+}
+
+function skipDocs() {
+  stopCamera();
+  navigateTo('/interview');
+}
+
+async function proceedToInterview() {
+  stopCamera();
+  Session.set(SESSION.DOCUMENTS, captured.filter(Boolean).map(d => ({ label: d.label, type: d.type })));
+  navigateTo('/interview');
+}
+
+function stopCamera() {
+  stream?.getTracks().forEach(t => t.stop());
+  stream = null;
+}
+
+window.addEventListener('beforeunload', stopCamera);
+</script>
+</body>
+</html>
