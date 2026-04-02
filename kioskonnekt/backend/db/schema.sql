@@ -13,7 +13,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS applicants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   full_name VARCHAR(255) NOT NULL,
-  application_number VARCHAR(100) UNIQUE NOT NULL,
   email VARCHAR(255) NOT NULL,
   program VARCHAR(255) NOT NULL,
   senior_high_school VARCHAR(255) NOT NULL,
@@ -110,19 +109,18 @@ ON CONFLICT (username) DO NOTHING;
 -- ============================================================
 -- SEED: Sample applicants for demo
 -- ============================================================
-INSERT INTO applicants (full_name, application_number, email, program, senior_high_school, strand, status)
+INSERT INTO applicants (full_name, email, program, senior_high_school, strand, status)
 VALUES
-  ('Maria Clara Santos', 'APP-2025-0001', 'maria.santos@email.com', 'BS Computer Science', 'Pasig City National High School', 'STEM', 'completed'),
-  ('Juan Miguel dela Cruz', 'APP-2025-0002', 'juan.delacruz@email.com', 'BS Nursing', 'Marikina Science High School', 'STEM', 'completed'),
-  ('Ana Gabrielle Reyes', 'APP-2025-0003', 'ana.reyes@email.com', 'BS Business Administration', 'Quezon City Science HS', 'ABM', 'completed')
-ON CONFLICT (application_number) DO NOTHING;
+  ('Maria Clara Santos', 'maria.santos@email.com', 'BS Computer Science', 'Pasig City National High School', 'STEM', 'completed'),
+  ('Juan Miguel dela Cruz', 'juan.delacruz@email.com', 'BS Nursing', 'Marikina Science High School', 'STEM', 'completed'),
+  ('Ana Gabrielle Reyes', 'ana.reyes@email.com', 'BS Business Administration', 'Quezon City Science HS', 'ABM', 'completed')
+ON CONFLICT DO NOTHING;
 
 -- View to get full applicant summary
 CREATE OR REPLACE VIEW applicant_summary AS
 SELECT
   a.id,
   a.full_name,
-  a.application_number,
   a.email,
   a.program,
   a.senior_high_school,

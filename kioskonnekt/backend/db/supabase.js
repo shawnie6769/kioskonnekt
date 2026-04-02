@@ -116,9 +116,9 @@ function seedDemoData() {
 
   const { v4: uuidv4 } = require('uuid');
   const demos = [
-    { id: uuidv4(), full_name: 'Maria Clara Santos', application_number: 'APP-2025-0001', email: 'maria@email.com', program: 'BS Computer Science', senior_high_school: 'Pasig City National HS', strand: 'STEM', status: 'completed', created_at: new Date(Date.now() - 7200000).toISOString() },
-    { id: uuidv4(), full_name: 'Juan Miguel dela Cruz', application_number: 'APP-2025-0002', email: 'juan@email.com', program: 'BS Nursing', senior_high_school: 'Marikina Science HS', strand: 'STEM', status: 'completed', created_at: new Date(Date.now() - 3600000).toISOString() },
-    { id: uuidv4(), full_name: 'Ana Gabrielle Reyes', application_number: 'APP-2025-0003', email: 'ana@email.com', program: 'BS Business Administration', senior_high_school: 'QC Science HS', strand: 'ABM', status: 'completed', created_at: new Date(Date.now() - 1800000).toISOString() }
+    { id: uuidv4(), full_name: 'Maria Clara Santos', email: 'maria@email.com', program: 'BS Computer Science', senior_high_school: 'Pasig City National HS', strand: 'STEM', status: 'completed', created_at: new Date(Date.now() - 7200000).toISOString() },
+    { id: uuidv4(), full_name: 'Juan Miguel dela Cruz', email: 'juan@email.com', program: 'BS Nursing', senior_high_school: 'Marikina Science HS', strand: 'STEM', status: 'completed', created_at: new Date(Date.now() - 3600000).toISOString() },
+    { id: uuidv4(), full_name: 'Ana Gabrielle Reyes', email: 'ana@email.com', program: 'BS Business Administration', senior_high_school: 'QC Science HS', strand: 'ABM', status: 'completed', created_at: new Date(Date.now() - 1800000).toISOString() }
   ];
 
   const sampleAnswers = [
