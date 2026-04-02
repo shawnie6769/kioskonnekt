@@ -116,10 +116,37 @@
           </div>
         </div>
 
-        <!-- SHS -->
-        <div class="field">
+        <!-- Senior High School Autocomplete -->
+        <div class="field" id="school-wrapper" style="position:relative;">
           <label class="field-label" for="shs">Senior High School <span style="color:var(--red)">*</span></label>
-          <input type="text" id="shs" class="field-input" placeholder="School name" autocomplete="off" />
+          <input
+            type="text"
+            id="shs"
+            name="senior_high_school"
+            placeholder="Type your school name..."
+            autocomplete="off"
+            class="field-input"
+            oninput="schoolSearch(this.value)"
+            onblur="hideDropdown()"
+          />
+          <!-- Dropdown -->
+          <div id="school-dropdown" style="
+            display:none;
+            position:absolute;
+            top:calc(100% - 2px);
+            left:0; right:0;
+            background:var(--surface);
+            border:1.5px solid var(--border);
+            border-radius:12px;
+            margin-top:4px;
+            max-height:240px;
+            overflow-y:auto;
+            z-index:100;
+            box-shadow:0 8px 32px rgba(0,0,0,0.3);
+          "></div>
+          <div id="school-hint" style="font-size:12px;color:var(--text3);margin-top:4px;">
+            Can't find your school? Just type it in — unlisted schools are accepted.
+          </div>
         </div>
 
         <!-- Strand -->
@@ -240,6 +267,59 @@ function validateProfileForm() {
 
   err.classList.remove('show');
   return values;
+}
+
+let schoolSearchTimeout = null;
+
+async function schoolSearch(val) {
+  const dropdown = document.getElementById('school-dropdown');
+  clearTimeout(schoolSearchTimeout);
+
+  if (!val || val.trim().length < 1) {
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  schoolSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/applicants/schools/search?q=${encodeURIComponent(val.trim())}`);
+      const result = await res.json();
+      const schools = result.data || [];
+
+      if (schools.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+      }
+
+      dropdown.innerHTML = schools.map(s => `
+        <div
+          onmousedown="selectSchool('${s.name.replace(/'/g, "\\'")}')"
+          style="padding:10px 16px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border);transition:background 0.15s;"
+          onmouseover="this.style.background='var(--surface2)'"
+          onmouseout="this.style.background=''"
+        >
+          <div style="font-weight:600;color:var(--text);">${s.name}</div>
+          <div style="font-size:12px;color:var(--text3);">${s.city ? s.city + ' · ' : ''}${s.region || ''}</div>
+        </div>
+      `).join('');
+
+      dropdown.style.display = 'block';
+    } catch (e) {
+      dropdown.style.display = 'none';
+    }
+  }, 300); // 300ms debounce — waits for user to stop typing
+}
+
+function selectSchool(name) {
+  document.getElementById('shs').value = name;
+  document.getElementById('school-dropdown').style.display = 'none';
+}
+
+function hideDropdown() {
+  // small delay so onmousedown on dropdown items fires first
+  setTimeout(() => {
+    document.getElementById('school-dropdown').style.display = 'none';
+  }, 150);
 }
 
 async function submitProfile() {

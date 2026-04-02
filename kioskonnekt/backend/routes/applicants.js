@@ -76,5 +76,32 @@ router.patch('/:id/status', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// GET /api/applicants/schools/search?q=query
+router.get('/schools/search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q || q.length < 1) return res.json({ success: true, data: [] });
+
+  try {
+    if (require('../db/supabase').isInMemory()) {
+      // fallback for in-memory mode
+      return res.json({ success: true, data: [] });
+    }
+
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = require('../db/supabase').getClient();
+
+    const { data, error } = await supabase
+      .from('schools')
+      .select('id, name, city, region, type')
+      .ilike('name', `%${q}%`)
+      .order('name', { ascending: true })
+      .limit(8);
+
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 module.exports = router;

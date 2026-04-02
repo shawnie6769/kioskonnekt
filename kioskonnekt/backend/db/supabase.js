@@ -148,5 +148,6 @@ function seedDemoData() {
     });
   });
 }
+function getClient() { return supabase; }
 
-module.exports = { initSupabase, dbInsert, dbSelect, dbSelectOne, dbUpdate, dbGetStats, seedDemoData, getMemStore: () => memStore, isInMemory: () => useInMemory };
+module.exports = { initSupabase, dbInsert, dbSelect, dbSelectOne, dbUpdate, dbGetStats, seedDemoData, getClient, getMemStore: () => memStore, isInMemory: () => useInMemory };
