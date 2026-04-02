@@ -14,17 +14,19 @@
   border: 1.5px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
-  aspect-ratio: 4/3;
+  aspect-ratio: 3/4;
   position: relative;
   display: flex; align-items: center; justify-content: center;
-  min-height: 300px;
+  width: 100%;
+  max-width: 420px;
+  min-height: 420px;
 }
 @media (max-width: 768px) {
   .document-layout { grid-template-columns: 1fr !important; }
-  .cam-frame { min-height: 250px; }
+  .cam-frame { max-width: 100%; min-height: 380px; }
 }
 @media (max-width: 480px) {
-  .cam-frame { min-height: 200px; }
+  .cam-frame { min-height: 320px; }
   .kiosk-body { padding: 12px 12px !important; }
 }
 .cam-corners::before, .cam-corners::after,
@@ -204,9 +206,6 @@ let selectedDoc = null;
 const captured = [null, null, null];
 let capturedCount = 0;
 
-// Create hidden canvas for demo mode
-const captureCanvas = document.createElement('canvas');
-
 function selectDoc(idx, label, type, icon) {
   document.querySelectorAll('.doc-card').forEach((c, i) => {
     c.classList.remove('selected');
@@ -220,37 +219,87 @@ function selectDoc(idx, label, type, icon) {
 }
 
 async function startCamera() {
+  const video = document.getElementById('video');
+  const placeholder = document.getElementById('cam-placeholder');
+  const captureBtn = document.getElementById('btn-capture');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    placeholder.style.display = 'flex';
+    placeholder.innerHTML = `
+      <div style="font-size:44px;margin-bottom:10px;">⚠️</div>
+      <div style="font-size:15px;font-weight:600;color:var(--red,#ef4444);">Camera Not Supported</div>
+      <div style="font-size:13px;margin-top:6px;">This browser cannot access a camera on this device.</div>
+    `;
+    captureBtn.disabled = true;
+    return;
+  }
+
+  await stopCamera();
+
   try {
-    // Request higher resolution from camera
-    stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { 
-        facingMode: 'environment', 
-        width: { ideal: 2560 },
-        height: { ideal: 1440 }
-      } 
-    });
-    const video = document.getElementById('video');
+    const constraintChain = [
+      {
+        video: {
+          facingMode: { ideal: 'environment' },
+          aspectRatio: { ideal: 3 / 4 },
+          width: { ideal: 1080 },
+          height: { ideal: 1440 }
+        }
+      },
+      {
+        video: {
+          facingMode: { ideal: 'environment' },
+          aspectRatio: { ideal: 3 / 4 }
+        }
+      },
+      { video: true }
+    ];
+
+    let lastError = null;
+    for (const constraints of constraintChain) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!stream) {
+      throw lastError || new Error('Unable to access camera stream.');
+    }
+
     video.srcObject = stream;
+    await video.play();
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.onended = () => {
+        captureBtn.disabled = true;
+        placeholder.style.display = 'flex';
+        placeholder.innerHTML = `
+          <div style="font-size:44px;margin-bottom:10px;">📷</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text2);">Camera Disconnected</div>
+          <div style="font-size:13px;margin-top:6px;">Tap Start Camera to reconnect.</div>
+        `;
+      };
+    }
+
     video.style.display = 'block';
-    document.getElementById('cam-placeholder').style.display = 'none';
+    placeholder.style.display = 'none';
     document.getElementById('preview').style.display = 'none';
     document.getElementById('scan-line').style.display = 'block';
-    document.getElementById('btn-capture').disabled = false;
+    captureBtn.disabled = false;
   } catch(e) {
-    enableDemoMode();
+    console.error('Camera start failed:', e);
+    placeholder.style.display = 'flex';
+    placeholder.innerHTML = `
+      <div style="font-size:44px;margin-bottom:10px;">⚠️</div>
+      <div style="font-size:15px;font-weight:600;color:var(--red,#ef4444);">Camera Access Failed</div>
+      <div style="font-size:13px;margin-top:6px;">Please allow camera permission, then tap Start Camera again.</div>
+    `;
+    captureBtn.disabled = true;
   }
-}
-
-function enableDemoMode() {
-  const ph = document.getElementById('cam-placeholder');
-  ph.innerHTML = `
-    <div style="font-size:48px;margin-bottom:12px;">🖼️</div>
-    <div style="font-size:15px;font-weight:600;color:var(--teal);">Demo Mode Active</div>
-    <div style="font-size:13px;margin-top:6px;">Camera unavailable. Click Capture to simulate a scan.</div>
-  `;
-  ph.style.display = 'flex';
-  document.getElementById('btn-capture').disabled = false;
-  document.getElementById('scan-line').style.display = 'block';
 }
 
 async function captureDoc() {
@@ -262,94 +311,113 @@ async function captureDoc() {
   const preview = document.getElementById('preview');
   let imageData;
 
-  if (video.style.display !== 'none' && video.srcObject) {
-    // Real camera capture - use actual video dimensions
-    canvas.width = video.videoWidth || 2560;
-    canvas.height = video.videoHeight || 1440;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    imageData = canvas.toDataURL('image/jpeg', 0.95);
-  } else {
-    // Demo mode - generate high-resolution simulated document
-    captureCanvas.width = 2560;
-    captureCanvas.height = 1440;
-    const ctx = captureCanvas.getContext('2d');
-    const grad = ctx.createLinearGradient(0,0,2560,1440);
-    grad.addColorStop(0, '#080D17'); 
-    grad.addColorStop(1, '#0C1423');
-    ctx.fillStyle = grad; 
-    ctx.fillRect(0,0,2560,1440);
-    ctx.strokeStyle = 'rgba(37,99,235,0.3)'; 
-    ctx.lineWidth = 2;
-    for(let x=0;x<2560;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,1440);ctx.stroke();}
-    for(let y=0;y<1440;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(2560,y);ctx.stroke();}
-    ctx.fillStyle = 'rgba(37,99,235,0.08)'; 
-    ctx.fillRect(280,160,2000,1120);
-    ctx.strokeStyle = '#2563EB'; 
-    ctx.lineWidth = 3; 
-    ctx.strokeRect(280,160,2000,1120);
-    ctx.fillStyle = '#EFF6FF'; 
-    ctx.font = 'bold 84px Outfit,sans-serif'; 
-    ctx.textAlign = 'center';
-    ctx.fillText(label, 1280, 680);
-    ctx.fillStyle = '#4E6E92'; 
-    ctx.font = '48px Space Mono,monospace';
-    ctx.fillText('Simulated Document Capture', 1280, 760);
-    ctx.fillText(new Date().toLocaleString('en-PH'), 1280, 830);
-    imageData = captureCanvas.toDataURL('image/jpeg', 0.95);
+  if (video.style.display === 'none' || !video.srcObject) {
+    alert('Camera is not active. Please tap Start Camera first.');
+    await startCamera();
+    return;
   }
 
-  captured[idx] = { label, type, imageData };
-  capturedCount = captured.filter(Boolean).length;
+  // Real camera capture
+  canvas.width = video.videoWidth || 720;
+  canvas.height = video.videoHeight || 1280;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  imageData = canvas.toDataURL('image/jpeg', 0.95);
 
-  // Save to API
-  const applicant = Session.get(SESSION.APPLICANT);
-  try {
-    await API.post('/documents', {
-      applicant_id: applicant.id,
-      document_type: type,
-      document_label: label,
-      image_data: imageData
-    });
-  } catch(e) {}
+  // Show scanning state
+  const btnCapture = document.getElementById('btn-capture');
+  btnCapture.disabled = true;
+  btnCapture.textContent = '⏳ Validating...';
 
-  // Update UI
-  preview.src = imageData;
-  preview.style.display = 'block';
-  if (video.style.display !== 'none') video.style.display = 'none';
-  document.getElementById('scan-line').style.display = 'none';
-
-  // OCR simulation
   const overlay = document.getElementById('ocr-overlay');
+  const overlayMsg = overlay.querySelector('div');
   overlay.style.display = 'flex';
-  setTimeout(() => { overlay.style.display = 'none'; }, 2500);
+  if (overlayMsg) overlayMsg.textContent = '🔍 Running OCR validation...';
 
-  // Update status
-  const statusEl = document.getElementById(`doc-${idx}-status`);
-  statusEl.textContent = '✓';
-  statusEl.style.color = 'var(--green)';
-  const card = document.getElementById(`doc-${idx}`);
-  card.classList.remove('selected'); card.classList.add('captured');
+  try {
+    // Send to backend for OCR + validation
+    const applicant = Session.get(SESSION.APPLICANT);
+    const response = await fetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        applicant_id: applicant.id,
+        document_type: type,
+        document_label: label,
+        image_data: imageData
+      })
+    });
 
-  // Thumbnail
-  const strip = document.getElementById('thumb-strip');
-  strip.style.display = 'flex';
-  const thumb = document.createElement('div');
-  thumb.style.cssText = 'position:relative;width:72px;height:54px;border-radius:8px;overflow:hidden;border:2px solid var(--green);';
-  thumb.innerHTML = `<img src="${imageData}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:9px;color:#fff;text-align:center;padding:2px;">✓</div>`;
-  strip.appendChild(thumb);
+    const result = await response.json();
 
-  // Progress
-  const pct = Math.round((capturedCount / 3) * 100);
-  document.getElementById('scan-progress').style.width = pct + '%';
-  document.getElementById('scan-count-text').textContent = `${capturedCount} / 3`;
-  document.getElementById('scan-status-msg').textContent = capturedCount === 3
-    ? '✅ All documents scanned! You may now proceed.'
-    : `${3 - capturedCount} more document(s) to scan.`;
+    if (!response.ok || !result.success) {
+      // Validation failed
+      overlay.style.display = 'none';
+      btnCapture.disabled = false;
+      btnCapture.textContent = '⚡ Capture';
 
-  if (capturedCount > 0) document.getElementById('btn-next').disabled = false;
-  selectedDoc = null;
-  document.getElementById('selected-indicator').textContent = 'Document captured! Select next or proceed.';
-  document.getElementById('selected-indicator').style.color = 'var(--green)';
+      // Show error message to user
+      const statusMsg = document.getElementById('scan-status-msg');
+      statusMsg.textContent = result.error || '❌ Document not recognized. Please retake.';
+      statusMsg.style.color = 'var(--red, #ef4444)';
+
+      alert(`❌ Document Validation Failed\n\n${result.error}\n\nPlease make sure you are scanning the correct document clearly and try again.`);
+      return;
+    }
+
+    // ✅ Validation passed
+    captured[idx] = { label, type, imageData };
+    capturedCount = captured.filter(Boolean).length;
+
+    // Update overlay to success
+    if (overlayMsg) overlayMsg.textContent = '✅ Document Validated — OCR Complete';
+    setTimeout(() => { overlay.style.display = 'none'; }, 2000);
+
+    // Update preview
+    preview.src = imageData;
+    preview.style.display = 'block';
+    if (video.style.display !== 'none') video.style.display = 'none';
+    document.getElementById('scan-line').style.display = 'none';
+
+    // Update card status
+    const statusEl = document.getElementById(`doc-${idx}-status`);
+    if (statusEl) { statusEl.textContent = '✓'; statusEl.style.color = 'var(--green)'; }
+    const card = document.getElementById(`doc-${idx}`);
+    if (card) { card.classList.remove('selected'); card.classList.add('captured'); }
+
+    // Add thumbnail
+    const strip = document.getElementById('thumb-strip');
+    if (strip) {
+      strip.style.display = 'flex';
+      const thumb = document.createElement('div');
+      thumb.style.cssText = 'position:relative;width:72px;height:54px;border-radius:8px;overflow:hidden;border:2px solid var(--green);';
+      thumb.innerHTML = `<img src="${imageData}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:9px;color:#fff;text-align:center;padding:2px;">✓</div>`;
+      strip.appendChild(thumb);
+    }
+
+    // Update progress
+    const pct = Math.round((capturedCount / 3) * 100);
+    document.getElementById('scan-progress').style.width = pct + '%';
+    document.getElementById('scan-count-text').textContent = `${capturedCount} / 3`;
+    const scanMsg = document.getElementById('scan-status-msg');
+    scanMsg.style.color = '';
+    scanMsg.textContent = capturedCount === 3
+      ? '✅ All documents scanned! You may now proceed.'
+      : `${3 - capturedCount} more document(s) to scan.`;
+
+    if (capturedCount > 0) document.getElementById('btn-next').disabled = false;
+
+    selectedDoc = null;
+    document.getElementById('selected-indicator').textContent = '✅ Document validated! Select next or proceed.';
+    document.getElementById('selected-indicator').style.color = 'var(--green)';
+
+  } catch (err) {
+    overlay.style.display = 'none';
+    alert('Network error during validation. Please try again.');
+    console.error('Capture error:', err);
+  }
+
+  btnCapture.disabled = false;
+  btnCapture.textContent = '⚡ Capture';
 }
 
 function skipDocs() {
@@ -363,8 +431,10 @@ async function proceedToInterview() {
   navigateTo('/interview');
 }
 
-function stopCamera() {
+async function stopCamera() {
   stream?.getTracks().forEach(t => t.stop());
+  const video = document.getElementById('video');
+  if (video) video.srcObject = null;
   stream = null;
 }
 

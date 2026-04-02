@@ -64,12 +64,60 @@ app.use((err, req, res, next) => {
 initSupabase();
 seedDemoData();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n╔═══════════════════════════════════════╗`);
   console.log(`║   KiosKonnekt Server v2.0             ║`);
   console.log(`║   Running at http://localhost:${PORT}     ║`);
   console.log(`║   Admin: http://localhost:${PORT}/admin   ║`);
   console.log(`╚═══════════════════════════════════════╝\n`);
+});
+
+// Allow port reuse immediately (don't wait for TIME_WAIT)
+server.setsockopt = function() {
+  const net = require('net');
+  if (this._handle && this._handle.setOption) {
+    this._handle.setOption(net.Socket.SOL_SOCKET, net.Socket.SO_REUSEADDR, 1);
+  }
+};
+
+// Try to set SO_REUSEADDR when server starts
+server.on('listening', () => {
+  try {
+    if (server._handle && typeof server._handle.setOption === 'function') {
+      const net = require('net');
+      server._handle.setOption(1, 15, 1); // SOL_SOCKET=1, SO_REUSEADDR=15
+    }
+  } catch (e) {}
+});
+
+// Allow server to restart without waiting for TIME_WAIT
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Waiting and retrying...`);
+    setTimeout(() => {
+      server.close();
+      server.listen(PORT);
+    }, 1000);
+  }
+});
+
+// Graceful shutdown on signals
+process.on('SIGTERM', () => {
+  console.log('\n[SIGTERM] Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed.');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000);
+});
+
+process.on('SIGINT', () => {
+  console.log('\n[SIGINT] Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed.');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000);
 });
 
 module.exports = app;
