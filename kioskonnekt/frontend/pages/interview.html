@@ -246,7 +246,7 @@
 <script>
 if (!requireSession()) {}
 
-const QUESTIONS = [
+const FALLBACK_QUESTIONS = [
   { label: "Tell us about yourself", text: "Hi, I'm Konnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique." },
   { label: "Why this program?", text: "Thank you. I'd love to hear more about your academic direction. What made you choose this program at our university, and what about this field feels right for you?" },
   { label: "Your strengths as a student", text: "That helps a lot. Every student brings different strengths into the classroom. What qualities, habits, or skills help you do your best as a learner?" },
@@ -261,7 +261,9 @@ let state = {
   startTime: Date.now(),
   inputMethod: 'typed',
   isLocked: false,
-  lastAiText: ''
+  lastAiText: '',
+  totalQuestions: FALLBACK_QUESTIONS.length,
+  askedQuestions: []
 };
 
 // ── Init ──────────────────────────────────────────────────
@@ -277,26 +279,29 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('header-name').textContent = applicant.full_name;
   document.getElementById('header-program').textContent = applicant.program;
-  document.getElementById('q-total').textContent = QUESTIONS.length;
+  document.getElementById('q-total').textContent = state.totalQuestions;
+
+  // Create interview record
+  try {
+    const res = await API.post('/interviews', { applicant_id: applicant.id, total_questions: state.totalQuestions });
+    if (res.success) {
+      state.interviewId = res.data.id;
+      state.totalQuestions = Number(res.data.total_questions) || state.totalQuestions;
+      Session.set(SESSION.INTERVIEW, res.data);
+      document.getElementById('q-total').textContent = state.totalQuestions;
+    }
+  } catch(e) { state.interviewId = 'local-' + Date.now(); }
 
   // Render dots
   const dots = document.getElementById('q-dots');
-  QUESTIONS.forEach((_, i) => {
+  dots.innerHTML = '';
+  for (let i = 0; i < state.totalQuestions; i++) {
     const d = document.createElement('div');
     d.className = 'q-progress-dot';
     d.id = `dot-${i}`;
     if (i === 0) d.classList.add('active');
     dots.appendChild(d);
-  });
-
-  // Create interview record
-  try {
-    const res = await API.post('/interviews', { applicant_id: applicant.id, total_questions: QUESTIONS.length });
-    if (res.success) {
-      state.interviewId = res.data.id;
-      Session.set(SESSION.INTERVIEW, res.data);
-    }
-  } catch(e) { state.interviewId = 'local-' + Date.now(); }
+  }
 
   // Load voices then ask first question
   if (speechSynthesis.getVoices().length === 0) {
@@ -400,8 +405,36 @@ function changeVoiceName(value) {
 }
 
 // ── Ask question ──────────────────────────────────────────
+async function resolveQuestion(idx) {
+  if (state.askedQuestions[idx]) return state.askedQuestions[idx];
+
+  const applicant = Session.get(SESSION.APPLICANT);
+  if (state.interviewId && applicant?.id && !state.interviewId.startsWith('local')) {
+    try {
+      const res = await API.post(`/interviews/${state.interviewId}/next-question`, {
+        applicant_id: applicant.id
+      });
+      if (res?.success && res.data && !res.data.done && res.data.question_text) {
+        const dynamicQuestion = {
+          label: res.data.question_label || `Question ${idx + 1}`,
+          text: res.data.question_text
+        };
+        state.askedQuestions[idx] = dynamicQuestion;
+        return dynamicQuestion;
+      }
+    } catch (e) {}
+  }
+
+  const fallback = FALLBACK_QUESTIONS[idx] || {
+    label: `Question ${idx + 1}`,
+    text: 'Please share your answer for this part of the interview.'
+  };
+  state.askedQuestions[idx] = fallback;
+  return fallback;
+}
+
 function askQuestion(idx) {
-  if (idx >= QUESTIONS.length) { finishInterview(); return; }
+  if (idx >= state.totalQuestions) { finishInterview(); return; }
   state.currentQ = idx;
   state.isLocked = true;
   updateProgress(idx);
@@ -410,9 +443,9 @@ function askQuestion(idx) {
   showTyping(true);
 
   const delay = 1000 + Math.random() * 700;
-  setTimeout(() => {
+  setTimeout(async () => {
+    const q = await resolveQuestion(idx);
     showTyping(false);
-    const q = QUESTIONS[idx];
     state.lastAiText = q.text;
     addBubble('ai', q.text, q.label, idx);
     TTS.speak(q.text, () => { state.isLocked = false; });
@@ -466,10 +499,10 @@ function scrollChat() {
 async function sendResponse() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
-  if (!text || state.responses.length >= QUESTIONS.length) return;
+  if (!text || state.responses.length >= state.totalQuestions) return;
 
   const qIdx = state.responses.length;
-  const q = QUESTIONS[qIdx];
+  const q = await resolveQuestion(qIdx);
 
   TTS.stop();
   addBubble('user', text);
@@ -485,9 +518,8 @@ async function sendResponse() {
     input_method: state.inputMethod
   };
   state.responses.push(response);
-  state.inputMethod = 'typed'; // reset
+  state.inputMethod = 'typed';
 
-  // Save to API
   if (state.interviewId) {
     try {
       await API.post(`/interviews/${state.interviewId}/responses`, {
@@ -497,13 +529,12 @@ async function sendResponse() {
     } catch(e) {}
   }
 
-  // Dot done
   document.getElementById(`dot-${qIdx}`)?.classList.replace('active', 'done');
 
   setTimeout(() => {
     document.getElementById('send-btn').disabled = false;
     const nextIdx = state.responses.length;
-    if (nextIdx < QUESTIONS.length) askQuestion(nextIdx);
+    if (nextIdx < state.totalQuestions) askQuestion(nextIdx);
     else finishInterview();
   }, 400);
 }
@@ -511,25 +542,34 @@ async function sendResponse() {
 // ── Finish ────────────────────────────────────────────────
 async function finishInterview() {
   state.isLocked = true;
-  updateProgress(QUESTIONS.length);
+  updateProgress(state.totalQuestions);
   showTyping(true);
 
   const applicant = Session.get(SESSION.APPLICANT);
   const name = applicant?.full_name?.split(' ')[0] || 'there';
   const duration = Math.round((Date.now() - state.startTime) / 1000);
 
-  setTimeout(() => {
+  setTimeout(async () => {
     showTyping(false);
-    const msg = `Excellent work, ${name}! 🎉 You've completed all ${QUESTIONS.length} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
+    let msg = `Excellent work, ${name}! 🎉 You've completed all ${state.totalQuestions} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
+
+    if (state.interviewId && applicant?.id && !state.interviewId.startsWith('local')) {
+      try {
+        const summaryRes = await API.post(`/interviews/${state.interviewId}/final-summary`, {
+          applicant_id: applicant.id
+        });
+        if (summaryRes?.success && summaryRes?.data?.summary) msg = summaryRes.data.summary;
+      } catch (e) {}
+    }
+
     state.lastAiText = msg;
-    addBubble('ai', msg, 'Interview Complete', QUESTIONS.length);
+    addBubble('ai', msg, 'Interview Complete', state.totalQuestions);
     document.getElementById('assistant-status-text').textContent = 'Wrapping up your interview and getting the summary ready.';
     TTS.speak(msg);
 
-    // Mark complete
     if (state.interviewId && !state.interviewId.startsWith('local')) {
       API.patch(`/interviews/${state.interviewId}/complete`, {
-        questions_answered: QUESTIONS.length,
+        questions_answered: state.totalQuestions,
         duration_seconds: duration
       }).catch(() => {});
     }
@@ -549,10 +589,10 @@ async function finishInterview() {
 
 // ── Progress ──────────────────────────────────────────────
 function updateProgress(idx) {
-  const done = Math.min(idx, QUESTIONS.length);
-  const pct = Math.round((done / QUESTIONS.length) * 100);
+  const done = Math.min(idx, state.totalQuestions);
+  const pct = Math.round((done / state.totalQuestions) * 100);
   document.getElementById('q-progress').style.width = pct + '%';
-  document.getElementById('q-num').textContent = Math.min(idx + 1, QUESTIONS.length);
+  document.getElementById('q-num').textContent = Math.min(idx + 1, state.totalQuestions);
   document.getElementById('q-pct').textContent = pct + '%';
 }
 

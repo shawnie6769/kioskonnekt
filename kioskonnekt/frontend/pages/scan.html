@@ -204,6 +204,9 @@ let selectedDoc = null;
 const captured = [null, null, null];
 let capturedCount = 0;
 
+// Create hidden canvas for demo mode
+const captureCanvas = document.createElement('canvas');
+
 function selectDoc(idx, label, type, icon) {
   document.querySelectorAll('.doc-card').forEach((c, i) => {
     c.classList.remove('selected');
@@ -218,7 +221,14 @@ function selectDoc(idx, label, type, icon) {
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 1280, height: 720 } });
+    // Request higher resolution from camera
+    stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        facingMode: 'environment', 
+        width: { ideal: 2560 },
+        height: { ideal: 1440 }
+      } 
+    });
     const video = document.getElementById('video');
     video.srcObject = stream;
     video.style.display = 'block';
@@ -253,29 +263,39 @@ async function captureDoc() {
   let imageData;
 
   if (video.style.display !== 'none' && video.srcObject) {
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    // Real camera capture - use actual video dimensions
+    canvas.width = video.videoWidth || 2560;
+    canvas.height = video.videoHeight || 1440;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    imageData = canvas.toDataURL('image/jpeg', 0.75);
+    imageData = canvas.toDataURL('image/jpeg', 0.95);
   } else {
-    // Simulate
-    const c = document.createElement('canvas');
-    c.width = 1280; c.height = 720;
-    const ctx = c.getContext('2d');
-    const grad = ctx.createLinearGradient(0,0,1280,720);
-    grad.addColorStop(0, '#080D17'); grad.addColorStop(1, '#0C1423');
-    ctx.fillStyle = grad; ctx.fillRect(0,0,1280,720);
-    ctx.strokeStyle = 'rgba(37,99,235,0.3)'; ctx.lineWidth = 2;
-    for(let x=0;x<1280;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,720);ctx.stroke();}
-    for(let y=0;y<720;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1280,y);ctx.stroke();}
-    ctx.fillStyle = 'rgba(37,99,235,0.08)'; ctx.fillRect(140,80,1000,560);
-    ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 3; ctx.strokeRect(140,80,1000,560);
-    ctx.fillStyle = '#EFF6FF'; ctx.font = 'bold 42px Outfit,sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(label, 640, 340);
-    ctx.fillStyle = '#4E6E92'; ctx.font = '24px Space Mono,monospace';
-    ctx.fillText('Simulated Document Capture', 640, 400);
-    ctx.fillText(new Date().toLocaleString('en-PH'), 640, 450);
-    imageData = c.toDataURL('image/jpeg', 0.75);
+    // Demo mode - generate high-resolution simulated document
+    captureCanvas.width = 2560;
+    captureCanvas.height = 1440;
+    const ctx = captureCanvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0,0,2560,1440);
+    grad.addColorStop(0, '#080D17'); 
+    grad.addColorStop(1, '#0C1423');
+    ctx.fillStyle = grad; 
+    ctx.fillRect(0,0,2560,1440);
+    ctx.strokeStyle = 'rgba(37,99,235,0.3)'; 
+    ctx.lineWidth = 2;
+    for(let x=0;x<2560;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,1440);ctx.stroke();}
+    for(let y=0;y<1440;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(2560,y);ctx.stroke();}
+    ctx.fillStyle = 'rgba(37,99,235,0.08)'; 
+    ctx.fillRect(280,160,2000,1120);
+    ctx.strokeStyle = '#2563EB'; 
+    ctx.lineWidth = 3; 
+    ctx.strokeRect(280,160,2000,1120);
+    ctx.fillStyle = '#EFF6FF'; 
+    ctx.font = 'bold 84px Outfit,sans-serif'; 
+    ctx.textAlign = 'center';
+    ctx.fillText(label, 1280, 680);
+    ctx.fillStyle = '#4E6E92'; 
+    ctx.font = '48px Space Mono,monospace';
+    ctx.fillText('Simulated Document Capture', 1280, 760);
+    ctx.fillText(new Date().toLocaleString('en-PH'), 1280, 830);
+    imageData = captureCanvas.toDataURL('image/jpeg', 0.95);
   }
 
   captured[idx] = { label, type, imageData };
