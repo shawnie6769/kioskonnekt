@@ -90,6 +90,19 @@ async function dbUpdate(table, id, updates) {
   return { data, error };
 }
 
+async function dbDelete(table, id) {
+  if (useInMemory) {
+    const idx = memStore[table].findIndex(r => r.id === id);
+    if (idx >= 0) {
+      const [deleted] = memStore[table].splice(idx, 1);
+      return { data: deleted, error: null };
+    }
+    return { data: null, error: 'Not found' };
+  }
+  const { data, error } = await supabase.from(table).delete().eq('id', id).select().single();
+  return { data, error };
+}
+
 async function dbGetStats() {
   if (useInMemory) {
     const today = new Date().toISOString().slice(0, 10);
@@ -150,4 +163,4 @@ function seedDemoData() {
 }
 function getClient() { return supabase; }
 
-module.exports = { initSupabase, dbInsert, dbSelect, dbSelectOne, dbUpdate, dbGetStats, seedDemoData, getClient, getMemStore: () => memStore, isInMemory: () => useInMemory };
+module.exports = { initSupabase, dbInsert, dbSelect, dbSelectOne, dbUpdate, dbDelete, dbGetStats, seedDemoData, getClient, getMemStore: () => memStore, isInMemory: () => useInMemory };

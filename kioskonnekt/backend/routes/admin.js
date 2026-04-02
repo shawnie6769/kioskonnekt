@@ -1,7 +1,7 @@
 // backend/routes/admin.js
 const express = require('express');
 const router = express.Router();
-const { dbSelect, dbSelectOne, dbGetStats, getMemStore } = require('../db/supabase');
+const { dbSelect, dbSelectOne, dbDelete, dbGetStats, getMemStore } = require('../db/supabase');
 
 // POST /api/admin/login
 router.post('/login', async (req, res) => {
@@ -70,6 +70,43 @@ router.get('/applicants/:id', async (req, res) => {
       success: true,
       data: { ...applicant, interviews: interviews || [], responses: sortedResponses, documents: documents || [] }
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/admin/applicants/:id/responses — delete all responses for one applicant
+router.delete('/applicants/:id/responses', async (req, res) => {
+  try {
+    const { data: responses, error } = await dbSelect('responses', { applicant_id: req.params.id });
+    if (error) throw error;
+
+    const targets = responses || [];
+    if (targets.length === 0) {
+      return res.json({ success: true, deleted: 0 });
+    }
+
+    let deleted = 0;
+    for (const row of targets) {
+      const { error: delErr } = await dbDelete('responses', row.id);
+      if (delErr) throw delErr;
+      deleted++;
+    }
+
+    res.json({ success: true, deleted });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/admin/responses/:id — delete one response
+router.delete('/responses/:id', async (req, res) => {
+  try {
+    const { data, error } = await dbDelete('responses', req.params.id);
+    if (error || !data) {
+      return res.status(404).json({ success: false, error: 'Response not found' });
+    }
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

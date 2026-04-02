@@ -174,10 +174,11 @@
                 <th>Docs</th>
                 <th>Responses</th>
                 <th class="sortable" onclick="sortBy('created_at')">Date ↕</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="table-body">
-              <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:60px;">Loading applicants…</td></tr>
+              <tr><td colspan="8" style="text-align:center;color:var(--text3);padding:60px;">Loading applicants…</td></tr>
             </tbody>
           </table>
         </div>
@@ -221,6 +222,7 @@ let allApplicants = [];
 let currentFilter = 'all';
 let sortField = 'created_at';
 let sortDir = -1;
+let currentApplicantId = null;
 
 // Auth check
 const adminUser = JSON.parse(sessionStorage.getItem('kk_admin') || 'null');
@@ -250,7 +252,7 @@ async function loadStats() {
 async function loadApplicants() {
   try {
     document.getElementById('table-body').innerHTML =
-      '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:60px;">Loading…</td></tr>';
+      '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:60px;">Loading…</td></tr>';
     const res = await API.get('/admin/applicants');
     if (res.success) {
       allApplicants = res.data || [];
@@ -259,7 +261,7 @@ async function loadApplicants() {
     }
   } catch(e) {
     document.getElementById('table-body').innerHTML =
-      '<tr><td colspan="7" style="text-align:center;color:var(--red);padding:60px;">Failed to load. Check server connection.</td></tr>';
+      '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:60px;">Failed to load. Check server connection.</td></tr>';
   }
 }
 
@@ -278,12 +280,12 @@ function renderTable() {
 
   const tbody = document.getElementById('table-body');
   if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:60px;">No applicants found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:60px;">No applicants found.</td></tr>';
     return;
   }
 
   tbody.innerHTML = data.map(a => `
-    <tr onclick="viewApplicant('${a.id}')">
+    <tr onclick="handleApplicantRowClick(event, '${a.id}')">
       <td>
         <div style="font-weight:600;font-size:15px;">${a.full_name}</div>
         <div style="font-size:12px;color:var(--text3);">${a.email || ''}</div>
@@ -302,8 +304,28 @@ function renderTable() {
         <span style="font-weight:700;color:${a.response_count > 0 ? 'var(--accent-bright)' : 'var(--text3)'};">${a.response_count || 0}</span>
       </td>
       <td style="font-size:12px;color:var(--text3);font-family:var(--mono);">${formatDate(a.created_at)}</td>
+      <td style="text-align:center;">
+        <button
+          class="btn btn-danger btn-sm"
+          style="padding:6px 10px;font-size:11px;"
+          onclick="deleteApplicantResponses('${a.id}', ${a.response_count || 0}, event)"
+          ${a.response_count > 0 ? '' : 'disabled'}
+        >Delete</button>
+      </td>
     </tr>
   `).join('');
+}
+
+function handleApplicantRowClick(event, applicantId) {
+  // Check if click target or its parent is a button
+  let target = event.target;
+  while (target && target !== event.currentTarget) {
+    if (target.tagName === 'BUTTON' || target.closest?.('button')) {
+      return;
+    }
+    target = target.parentElement;
+  }
+  viewApplicant(applicantId);
 }
 
 function filterTable() { renderTable(); }
@@ -360,6 +382,7 @@ function renderStatCharts() {
 }
 
 async function viewApplicant(id) {
+  currentApplicantId = id;
   const modal = document.getElementById('modal-detail');
   const body = document.getElementById('detail-body');
   body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Loading…</div>';
@@ -416,7 +439,10 @@ async function viewApplicant(id) {
             </div>
             <div style="font-size:13px;color:var(--text3);margin-bottom:10px;font-style:italic;">"${r.question_text}"</div>
             <div style="padding:14px 16px;background:var(--surface);border-radius:10px;border-left:3px solid var(--accent);font-size:15px;line-height:1.6;">${r.answer_text}</div>
-            <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;">${r.word_count || r.answer_text?.split(' ').length || 0} words · ${formatDate(r.answered_at)}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;">
+              <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${r.word_count || r.answer_text?.split(' ').length || 0} words · ${formatDate(r.answered_at)}</div>
+              <button class="btn btn-danger btn-sm" onclick="deleteResponse('${r.id}')">🗑 Delete Response</button>
+            </div>
           </div>`)
         .join('')
       : '<div style="color:var(--text3);font-size:13px;">No responses recorded.</div>';
@@ -439,6 +465,44 @@ async function viewApplicant(id) {
     `;
   } catch(e) {
     body.innerHTML = '<div style="text-align:center;color:var(--red);padding:40px;">Failed to load applicant details.</div>';
+  }
+}
+
+async function deleteResponse(responseId) {
+  if (!responseId || !currentApplicantId) return;
+  const ok = window.confirm('Delete this response? This cannot be undone.');
+  if (!ok) return;
+
+  try {
+    const res = await fetch(API.BASE + `/admin/responses/${responseId}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Failed to delete response');
+    await loadApplicants();
+    await viewApplicant(currentApplicantId);
+  } catch (e) {
+    alert(e.message || 'Failed to delete response.');
+  }
+}
+
+async function deleteApplicantResponses(applicantId, responseCount, event) {
+  // Stop event propagation
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  
+  if (!applicantId || !responseCount) return;
+  const ok = window.confirm(`Delete all ${responseCount} response(s) for this applicant? This cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch(API.BASE + `/admin/applicants/${applicantId}/responses`, { method: 'DELETE' });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Failed to delete responses');
+    await loadApplicants();
+    if (currentApplicantId === applicantId) await viewApplicant(applicantId);
+  } catch (e) {
+    alert(e.message || 'Failed to delete responses.');
   }
 }
 
