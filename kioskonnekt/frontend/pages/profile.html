@@ -141,8 +141,8 @@
 
         <!-- Contact -->
         <div class="field">
-          <label class="field-label" for="contact">Contact Number</label>
-          <input type="tel" id="contact" class="field-input" placeholder="+63 912 345 6789" autocomplete="off" />
+          <label class="field-label" for="contact">Contact Number <span style="color:var(--red)">*</span></label>
+          <input type="tel" id="contact" class="field-input" placeholder="09XXXXXXXXX" autocomplete="off" inputmode="numeric" maxlength="11" pattern="[0-9]{11}" />
         </div>
       </div>
 
@@ -178,7 +178,7 @@
 <script src="/js/app.js"></script>
 <script>
 function validateProfileForm() {
-  const requiredFields = ['fullname', 'email', 'program', 'shs'];
+  const requiredFields = ['fullname', 'email', 'program', 'shs', 'contact'];
   const err = document.getElementById('form-error');
   err.textContent = '⚠ Please complete all required fields before proceeding.';
 
@@ -194,7 +194,8 @@ function validateProfileForm() {
     fullname: document.getElementById('fullname').value.trim(),
     email: document.getElementById('email').value.trim(),
     program: document.getElementById('program').value,
-    shs: document.getElementById('shs').value.trim()
+    shs: document.getElementById('shs').value.trim(),
+    contact: document.getElementById('contact').value.replace(/\D/g, '')
   };
 
   // Required checks
@@ -219,6 +220,15 @@ function validateProfileForm() {
     if (!emailPattern.test(values.email)) {
       document.getElementById('email')?.classList.add('field-input-error');
       err.textContent = '⚠ Please enter a valid email address.';
+      hasError = true;
+    }
+  }
+
+  if (!hasError) {
+    const contactPattern = /^\d{11}$/;
+    if (!contactPattern.test(values.contact)) {
+      document.getElementById('contact')?.classList.add('field-input-error');
+      err.textContent = '⚠ Contact number must be exactly 11 digits.';
       hasError = true;
     }
   }
@@ -249,7 +259,7 @@ async function submitProfile() {
       program: values.program,
       senior_high_school: values.shs,
       strand: document.getElementById('strand').value,
-      contact_number: document.getElementById('contact').value.trim()
+      contact_number: values.contact
     });
 
     if (!res.success) throw new Error(res.error || 'Failed to save');
@@ -265,6 +275,10 @@ async function submitProfile() {
 
 // Enter key support
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName !== 'SELECT') submitProfile(); });
+
+document.getElementById('contact')?.addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
+});
 </script>
 </body>
 </html>
