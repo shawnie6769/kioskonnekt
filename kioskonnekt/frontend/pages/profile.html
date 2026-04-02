@@ -72,12 +72,6 @@
           <input type="text" id="fullname" class="field-input" placeholder="e.g. Maria Clara Santos" autocomplete="off" />
         </div>
 
-        <!-- App number -->
-        <div class="field">
-          <label class="field-label" for="appnum">Application Number <span style="color:var(--red)">*</span></label>
-          <input type="text" id="appnum" class="field-input" placeholder="APP-2025-0001" style="font-family:var(--mono);" autocomplete="off" />
-        </div>
-
         <!-- Email -->
         <div class="field">
           <label class="field-label" for="email">Email Address <span style="color:var(--red)">*</span></label>
@@ -184,7 +178,7 @@
 <script src="/js/app.js"></script>
 <script>
 function validateProfileForm() {
-  const requiredFields = ['fullname', 'appnum', 'email', 'program', 'shs'];
+  const requiredFields = ['fullname', 'email', 'program', 'shs'];
   const err = document.getElementById('form-error');
   err.textContent = '⚠ Please complete all required fields before proceeding.';
 
@@ -198,7 +192,6 @@ function validateProfileForm() {
 
   const values = {
     fullname: document.getElementById('fullname').value.trim(),
-    appnum: document.getElementById('appnum').value.trim(),
     email: document.getElementById('email').value.trim(),
     program: document.getElementById('program').value,
     shs: document.getElementById('shs').value.trim()
@@ -212,6 +205,13 @@ function validateProfileForm() {
       hasError = true;
     }
   });
+
+  // Check if fullname contains numbers
+  if (values.fullname && /\d/.test(values.fullname)) {
+    document.getElementById('fullname')?.classList.add('field-input-error');
+    err.textContent = '⚠ Full name cannot contain numbers.';
+    hasError = true;
+  }
 
   // Basic email format validation
   if (!hasError && values.email) {
@@ -245,7 +245,6 @@ async function submitProfile() {
   try {
     const res = await API.post('/applicants', {
       full_name: values.fullname,
-      application_number: values.appnum,
       email: values.email,
       program: values.program,
       senior_high_school: values.shs,
