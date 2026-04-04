@@ -204,7 +204,7 @@
 
 <!-- Edit Modal -->
 <div id="modal-edit" class="modal-overlay" style="align-items:center;padding:20px;z-index:10001;">
-  <div class="modal-box" style="width:min(580px,94vw);">
+  <div class="modal-box" style="width:min(680px,94vw);max-height:90vh;overflow-y:auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <h3 style="font-size:20px;font-weight:700;" id="edit-title">Edit</h3>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-edit')">✕ Close</button>
@@ -238,6 +238,7 @@ let currentFilter = 'all';
 let sortField = 'created_at';
 let sortDir = -1;
 let currentApplicantId = null;
+let currentApplicantDetail = null;  // Store full detail for document image access
 
 // Auth check
 const adminUser = JSON.parse(sessionStorage.getItem('kk_admin') || 'null');
@@ -413,6 +414,7 @@ async function viewApplicant(id) {
     const res = await API.get(`/admin/applicants/${id}`);
     if (!res.success) throw new Error();
     const a = res.data;
+    currentApplicantDetail = a;  // Store full detail including documents with image_data
 
     document.getElementById('detail-title').textContent = a.full_name;
     document.getElementById('detail-status-badge').className =
@@ -550,9 +552,26 @@ function editResponse(responseId, btn) {
 }
 
 function editDocument(docId, currentLabel, currentType) {
+  // Find the full document object from stored detail
+  const doc = currentApplicantDetail?.documents?.find(d => d.id === docId);
+  const imageData = doc?.image_data || null;
+  
+  console.log('editDocument called:', { docId, currentLabel, currentType });
+  console.log('currentApplicantDetail:', currentApplicantDetail);
+  console.log('found doc:', doc);
+  console.log('imageData exists?', !!imageData, 'length:', imageData?.length);
+
   editState = { type: 'document', id: docId };
   document.getElementById('edit-title').textContent = 'Edit Document';
+  
+  const imagePreview = imageData 
+    ? `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface2);">
+         <img src="data:image/png;base64,${imageData}" style="width:100%;height:auto;max-height:350px;object-fit:contain;display:block;" alt="Document preview" />
+       </div>`
+    : `<div style="margin-bottom:16px;padding:20px;background:var(--surface2);border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--text3);font-size:13px;">No image available (docId: ${docId})</div>`;
+
   document.getElementById('edit-body').innerHTML = `
+    ${imagePreview}
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
         <label style="font-size:12px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Document Label</label>
