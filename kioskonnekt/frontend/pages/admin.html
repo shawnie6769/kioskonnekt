@@ -202,6 +202,21 @@
   </div>
 </div>
 
+<!-- Edit Modal -->
+<div id="modal-edit" class="modal-overlay" style="align-items:center;padding:20px;z-index:1100;">
+  <div class="modal-box" style="width:min(580px,94vw);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 style="font-size:20px;font-weight:700;" id="edit-title">Edit</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-edit')">✕ Close</button>
+    </div>
+    <div id="edit-body"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-edit')">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="btn-save-edit" onclick="saveEdit()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- Applicant detail modal -->
 <div id="modal-detail" class="modal-overlay" style="align-items:flex-start;padding:40px 20px;overflow-y:auto;">
   <div class="modal-box" style="width:min(800px,94vw);max-height:none;">
@@ -285,7 +300,7 @@ function renderTable() {
   }
 
   tbody.innerHTML = data.map(a => `
-    <tr onclick="handleApplicantRowClick(event, '${a.id}')">
+    <tr data-id="${a.id}" class="applicant-row" style="cursor:pointer;">
       <td>
         <div style="font-weight:600;font-size:15px;">${a.full_name}</div>
         <div style="font-size:12px;color:var(--text3);">${a.email || ''}</div>
@@ -307,26 +322,32 @@ function renderTable() {
       <td style="text-align:center;">
         <button
           class="btn btn-danger btn-sm"
-          style="padding:6px 10px;font-size:11px;"
-          onclick="deleteApplicantResponses('${a.id}', ${a.response_count || 0}, event)"
-          ${a.response_count > 0 ? '' : 'disabled'}
-        >Delete</button>
+          style="padding:6px 10px;font-size:11px;position:relative;z-index:10;"
+          data-delete-id="${a.id}"
+        >🗑 Delete</button>
       </td>
     </tr>
   `).join('');
 }
 
-function handleApplicantRowClick(event, applicantId) {
-  // Check if click target or its parent is a button
-  let target = event.target;
-  while (target && target !== event.currentTarget) {
-    if (target.tagName === 'BUTTON' || target.closest?.('button')) {
+// Single delegated listener on tbody handles both row clicks and delete buttons
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('table-body').addEventListener('click', async function(e) {
+    const btn = e.target.closest('button[data-delete-id]');
+    if (btn) {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = btn.getAttribute('data-delete-id');
+      await deleteApplicant(id);
       return;
     }
-    target = target.parentElement;
-  }
-  viewApplicant(applicantId);
-}
+    const row = e.target.closest('tr.applicant-row');
+    if (row) {
+      const id = row.getAttribute('data-id');
+      if (id) viewApplicant(id);
+    }
+  });
+});
 
 function filterTable() { renderTable(); }
 
@@ -418,10 +439,12 @@ async function viewApplicant(id) {
     // Documents
     const docsHTML = a.documents?.length
       ? a.documents.map(d => `
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid rgba(16,185,129,0.2);border-radius:10px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border:1px solid rgba(16,185,129,0.2);border-radius:10px;">
             <span style="color:var(--green);">✓</span>
-            <span style="font-size:14px;">${d.document_label}</span>
-            <span class="badge badge-teal" style="margin-left:auto;font-size:10px;">OCR ✓</span>
+            <span style="font-size:14px;flex:1;" id="doc-label-${d.id}">${d.document_label}</span>
+            <span class="badge badge-teal" style="font-size:10px;">Verified</span>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px;" onclick="editDocument('${d.id}', '${d.document_label}', '${d.document_type}')">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" style="font-size:11px;padding:4px 8px;" onclick="deleteDocument('${d.id}')">🗑</button>
           </div>`)
         .join('')
       : '<div style="color:var(--text3);font-size:13px;">No documents submitted.</div>';
@@ -441,7 +464,8 @@ async function viewApplicant(id) {
             <div style="padding:14px 16px;background:var(--surface);border-radius:10px;border-left:3px solid var(--accent);font-size:15px;line-height:1.6;">${r.answer_text}</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;">
               <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${r.word_count || r.answer_text?.split(' ').length || 0} words · ${formatDate(r.answered_at)}</div>
-              <button class="btn btn-danger btn-sm" onclick="deleteResponse('${r.id}')">🗑 Delete Response</button>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="editResponse('${r.id}', this)">✏️ Edit</button>
+              <button class="btn btn-danger btn-sm" style="font-size:11px;" onclick="deleteResponse('${r.id}')">🗑 Delete</button>
             </div>
           </div>`)
         .join('')
@@ -484,25 +508,117 @@ async function deleteResponse(responseId) {
   }
 }
 
-async function deleteApplicantResponses(applicantId, responseCount, event) {
-  // Stop event propagation
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
-  
-  if (!applicantId || !responseCount) return;
-  const ok = window.confirm(`Delete all ${responseCount} response(s) for this applicant? This cannot be undone.`);
+async function deleteApplicant(applicantId) {
+  if (!applicantId) return;
+  const ok = window.confirm('Delete this applicant and ALL their data?\n\nThis includes their profile, responses, documents, and interview records.\n\nThis cannot be undone.');
   if (!ok) return;
-
   try {
-    const res = await fetch(API.BASE + `/admin/applicants/${applicantId}/responses`, { method: 'DELETE' });
+    const res = await fetch(API.BASE + '/admin/applicants/' + applicantId, { method: 'DELETE' });
     const result = await res.json();
-    if (!result.success) throw new Error(result.error || 'Failed to delete responses');
+    if (!result.success) throw new Error(result.error || 'Failed to delete applicant');
+    if (currentApplicantId === applicantId) {
+      closeModal('modal-detail');
+      currentApplicantId = null;
+    }
     await loadApplicants();
-    if (currentApplicantId === applicantId) await viewApplicant(applicantId);
   } catch (e) {
-    alert(e.message || 'Failed to delete responses.');
+    alert(e.message || 'Failed to delete applicant.');
+  }
+}
+
+// ── Edit state ────────────────────────────────────────────────────────────────
+let editState = { type: null, id: null };
+
+function editResponse(responseId, btn) {
+  // Find the answer text from the DOM — it's in the div after the question
+  const responseBlock = btn.closest('div[style*="padding:20px"]');
+  const answerDiv = responseBlock ? responseBlock.querySelector('div[style*="border-left"]') : null;
+  const currentAnswer = answerDiv ? answerDiv.textContent.trim() : '';
+  const questionLabel = responseBlock ? responseBlock.querySelector('div[style*="font-size:11px"]')?.textContent?.trim() : 'Response';
+
+  editState = { type: 'response', id: responseId };
+  document.getElementById('edit-title').textContent = 'Edit Response';
+  document.getElementById('edit-body').innerHTML = `
+    <div style="margin-bottom:8px;">
+      <label style="font-size:12px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Answer Text</label>
+      <textarea id="edit-input" style="width:100%;min-height:160px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:14px;font-size:14px;color:var(--text);font-family:'Outfit',sans-serif;resize:vertical;outline:none;line-height:1.6;box-sizing:border-box;">${currentAnswer}</textarea>
+    </div>
+    <div style="font-size:12px;color:var(--text3);">Changes will be saved to the database immediately.</div>
+  `;
+  document.getElementById('modal-edit').classList.add('open');
+  setTimeout(() => { const el = document.getElementById('edit-input'); if(el) el.focus(); }, 100);
+}
+
+function editDocument(docId, currentLabel, currentType) {
+  editState = { type: 'document', id: docId };
+  document.getElementById('edit-title').textContent = 'Edit Document';
+  document.getElementById('edit-body').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Document Label</label>
+        <input id="edit-doc-label" type="text" value="${currentLabel}" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--text);font-family:'Outfit',sans-serif;outline:none;box-sizing:border-box;" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Document Type</label>
+        <select id="edit-doc-type" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--text);font-family:'Outfit',sans-serif;outline:none;box-sizing:border-box;">
+          <option value="psa_birth_cert" ${currentType === 'psa_birth_cert' ? 'selected' : ''}>PSA Birth Certificate</option>
+          <option value="form_138" ${currentType === 'form_138' ? 'selected' : ''}>Form 138 (Report Card)</option>
+          <option value="good_moral" ${currentType === 'good_moral' ? 'selected' : ''}>Good Moral Certificate</option>
+        </select>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+async function saveEdit() {
+  const btn = document.getElementById('btn-save-edit');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    if (editState.type === 'response') {
+      const answer = document.getElementById('edit-input')?.value?.trim();
+      if (!answer) { alert('Answer cannot be empty.'); return; }
+      const res = await fetch(API.BASE + '/admin/responses/' + editState.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer_text: answer })
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+    } else if (editState.type === 'document') {
+      const label = document.getElementById('edit-doc-label')?.value?.trim();
+      const type  = document.getElementById('edit-doc-type')?.value;
+      if (!label) { alert('Label cannot be empty.'); return; }
+      const res = await fetch(API.BASE + '/admin/documents/' + editState.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_label: label, document_type: type })
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+    }
+    closeModal('modal-edit');
+    await loadApplicants();
+    if (currentApplicantId) await viewApplicant(currentApplicantId);
+  } catch (e) {
+    alert('Failed to save: ' + (e.message || 'Unknown error'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Save Changes';
+  }
+}
+
+async function deleteDocument(docId) {
+  if (!confirm('Delete this document? This cannot be undone.')) return;
+  try {
+    const res = await fetch(API.BASE + '/admin/documents/' + docId, { method: 'DELETE' });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error);
+    await loadApplicants();
+    if (currentApplicantId) await viewApplicant(currentApplicantId);
+  } catch (e) {
+    alert('Failed to delete document: ' + (e.message || 'Unknown error'));
   }
 }
 
