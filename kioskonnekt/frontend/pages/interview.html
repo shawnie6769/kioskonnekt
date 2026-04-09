@@ -263,7 +263,8 @@ let state = {
   isLocked: false,
   lastAiText: '',
   totalQuestions: FALLBACK_QUESTIONS.length,
-  askedQuestions: []
+  askedQuestions: [],
+  resumeUrls: {}  // ✅ NEW: Store resume URLs by question index
 };
 
 // ── Init ──────────────────────────────────────────────────
@@ -420,6 +421,12 @@ async function resolveQuestion(idx) {
           text: res.data.question_text
         };
         state.askedQuestions[idx] = dynamicQuestion;
+        
+        // ✅ NEW: Store the resume URL for this question
+        if (res.data.resumeUrl) {
+          state.resumeUrls[idx] = res.data.resumeUrl;
+        }
+        
         return dynamicQuestion;
       }
     } catch (e) {}
@@ -519,6 +526,25 @@ async function sendResponse() {
   };
   state.responses.push(response);
   state.inputMethod = 'typed';
+
+  // ✅ UPDATED: Use the dynamic resume URL if available
+  if (qIdx === 0 && state.resumeUrls[qIdx]) {
+    try {
+      await fetch(state.resumeUrls[qIdx], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicant_id: Session.get(SESSION.APPLICANT)?.id,
+          applicant_name: Session.get(SESSION.APPLICANT)?.full_name,
+          answer: text,
+          question: q.text,
+          timestamp: new Date().toISOString()
+        })
+      }).catch(err => console.error('Resume webhook call failed:', err));
+    } catch (err) {
+      console.error('Resume webhook error:', err);
+    }
+  }
 
   if (state.interviewId) {
     try {

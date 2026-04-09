@@ -87,30 +87,44 @@ router.post('/:id/next-question', async (req, res) => {
       return res.json({ success: true, data: { done: true, question_index: questionIndex } });
     }
 
-    const fallback = getFallbackQuestion(questionIndex);
-    const n8nResult = await callN8nWorkflow('next_question', {
-      interview_id: req.params.id,
-      question_index: questionIndex,
-      total_questions: totalQuestions,
-      applicant: context.applicant,
-      responses: context.responses,
-      documents: context.documents
-    });
+      const fallback = getFallbackQuestion(questionIndex);
+      const n8nResult = await callN8nWorkflow('next_question', {
+          interview_id: req.params.id,
+          question_index: questionIndex,
+          total_questions: totalQuestions,
+          applicant: context.applicant,
+          responses: context.responses,
+          documents: context.documents
+      });
 
-    const selected = n8nResult.success && n8nResult.question
-      ? { ...n8nResult.question, source: 'n8n' }
-      : { ...fallback, source: 'fallback' };
-
-    res.json({
-      success: true,
-      data: {
-        done: false,
-        question_index: questionIndex,
-        question_label: selected.label,
-        question_text: selected.text,
-        source: selected.source
+      // ✅ Add debugging for second question
+      if (questionIndex === 1) {
+          console.log('🔴 DEBUG Q2: n8nResult.success:', n8nResult.success);
+          console.log('🔴 DEBUG Q2: n8nResult.question:', n8nResult.question);
+          console.log('🔴 DEBUG Q2: n8nResult.error:', n8nResult.error);
+          console.log('🔴 DEBUG Q2: Full n8nResult:', JSON.stringify(n8nResult, null, 2));
       }
-    });
+
+      // ✅ Use n8n's dynamic resume URL if available
+      const selected = n8nResult.success && n8nResult.question
+          ? {
+              ...n8nResult.question,
+              source: 'n8n',
+              resumeUrl: n8nResult.data?.resumeUrl
+          }
+          : { ...fallback, source: 'fallback', resumeUrl: null };
+
+      res.json({
+          success: true,
+          data: {
+              done: false,
+              question_index: questionIndex,
+              question_label: selected.label,
+              question_text: selected.text,
+              source: selected.source,
+              resumeUrl: selected.resumeUrl
+          }
+      });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -153,8 +167,57 @@ router.post('/:id/responses', async (req, res) => {
     });
     if (error) throw error;
 
+    // ✅ NEW: Call webhook when first question is answered
+    if (question_index === 0 && process.env.N8N_WAIT_WEBHOOK_URL) {
+      fetch(process.env.N8N_WAIT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicant_id: applicant_id,
+          question_index: question_index,
+          answer: answer_text,
+          timestamp: new Date().toISOString()
+        })
+      }).catch(err => console.error('Wait node webhook failed:', err));
+    }
+
     await dbUpdate('interviews', req.params.id, { questions_answered: (question_index || 0) + 1 });
-    res.status(201).json({ success: true, data });
+    
+    // ✅ NEW: Fetch fresh context with the newly saved response
+    const context = await buildInterviewContext(req.params.id, applicant_id);
+    const totalQuestions = context.interview.total_questions || 5;
+    const nextQuestionIndex = context.responses.length;
+
+    // ✅ NEW: Get next question immediately while context is fresh
+    let nextQuestion = null;
+    if (nextQuestionIndex < totalQuestions) {
+      const fallback = getFallbackQuestion(nextQuestionIndex);
+      const n8nResult = await callN8nWorkflow('next_question', {
+        interview_id: req.params.id,
+        question_index: nextQuestionIndex,
+        total_questions: totalQuestions,
+        applicant: context.applicant,
+        responses: context.responses,
+        documents: context.documents
+      });
+      nextQuestion = n8nResult.success && n8nResult.question
+        ? { ...n8nResult.question, source: 'n8n' }
+        : { ...fallback, source: 'fallback' };
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      data: {
+        response: data,
+        nextQuestion: nextQuestion ? {
+          done: false,
+          question_index: nextQuestionIndex,
+          question_label: nextQuestion.label,
+          question_text: nextQuestion.text,
+          source: nextQuestion.source
+        } : { done: true }
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
