@@ -171,9 +171,19 @@ const SpeechSettings = {
 
   getVoiceOptions(locale = this.getLocale()) {
     const voices = this.getVoicesForLocale(locale);
+    const filteredVoices = voices.filter(voice => {
+      if (locale === 'en-US') {
+        return /andrewmultilingual|microsoft andrew/i.test(voice.name);
+      }
+      if (locale === 'fil-PH') {
+        return /angelo/i.test(voice.name);
+      }
+      // For other languages, keep all voices
+      return true;
+    });
     return [
       { value: 'auto', label: 'Auto Select', quality: 'Best match' },
-      ...voices.map(voice => ({
+      ...filteredVoices.map(voice => ({
         value: voice.name,
         label: voice.name,
         quality: /natural|online|neural|premium|enhanced|studio/i.test(`${voice.name} ${voice.voiceURI || ''}`) ? 'Natural' : 'Standard'
@@ -205,6 +215,19 @@ const TTS = {
         || (this.synth?.getVoices?.() || []).find(voice => voice.name === selectedVoiceName);
       if (explicit) return explicit;
     }
+
+    if (locale === 'en-US') {
+      const andrew = voices.find(voice => /andrewmultilingual|microsoft andrew/i.test(voice.name))
+        || (this.synth?.getVoices?.() || []).find(voice => /andrewmultilingual|microsoft andrew/i.test(voice.name));
+      if (andrew) return andrew;
+    }
+
+    if (locale === 'fil-PH') {
+      const angelo = voices.find(voice => /angelo/i.test(voice.name))
+        || (this.synth?.getVoices?.() || []).find(voice => /angelo/i.test(voice.name));
+      if (angelo) return angelo;
+    }
+
     return voices[0] || (this.synth?.getVoices?.() || [])[0] || null;
   },
 

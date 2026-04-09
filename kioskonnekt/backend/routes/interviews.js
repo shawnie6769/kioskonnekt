@@ -7,7 +7,7 @@ const { callN8nWorkflow, isN8nEnabled } = require('../services/n8n');
 const FALLBACK_QUESTIONS = [
   {
     label: 'Tell us about yourself',
-    text: "Hi, I'm Konnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique."
+    text: "Hi, I'm KiosKonnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique."
   },
   {
     label: 'Why this program?',

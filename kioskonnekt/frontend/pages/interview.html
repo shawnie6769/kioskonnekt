@@ -162,10 +162,6 @@
             <button type="button" class="lang-btn" data-locale="fil-PH" id="lang-fil">Filipino</button>
           </div>
         </div>
-        <div class="voice-language-picker voice-picker-wide">
-          <label for="voice-name">Voice</label>
-          <select id="voice-name" onchange="changeVoiceName(this.value)"></select>
-        </div>
       </div>
       <div class="steps">
         <div class="step done"><div class="step-num">✓</div></div>
@@ -259,7 +255,7 @@
 if (!requireSession()) {}
 
 const FALLBACK_QUESTIONS = [
-  { label: "Tell us about yourself", text: "Hi, I'm Konnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique." },
+  { label: "Tell us about yourself", text: "Hi, I'm KiosKonnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique." },
   { label: "Why this program?", text: "Thank you. I'd love to hear more about your academic direction. What made you choose this program at our university, and what about this field feels right for you?" },
   { label: "Your strengths as a student", text: "That helps a lot. Every student brings different strengths into the classroom. What qualities, habits, or skills help you do your best as a learner?" },
   { label: "Handling challenges", text: "Let's talk about resilience for a moment. When school becomes difficult or something does not go as planned, how do you usually respond and move forward?" },
