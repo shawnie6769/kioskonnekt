@@ -57,7 +57,16 @@
 }
 .voice-picker-wide select {
   min-width: 240px;
+  width: 240px;
+  flex: 0 0 240px;
 }
+
+/* Language toggle styles */
+.lang-toggle { display:flex; gap:8px; }
+.lang-btn {
+  padding:8px 12px; border-radius:10px; background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--text3); cursor:pointer; font-size:13px;
+}
+.lang-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .kiosk-root { overflow: auto; min-height: 100vh; }
 .kiosk-body { overflow: auto; }
 .chat-area { overflow: auto; max-height: calc(100vh - 200px); }
@@ -147,8 +156,11 @@
     <div style="display:flex;gap:16px;align-items:center;" class="interview-header-side">
       <div class="voice-controls">
         <div class="voice-language-picker">
-          <label for="voice-language">Language</label>
-          <select id="voice-language" onchange="changeVoiceLanguage(this.value)"></select>
+          <label>Language</label>
+          <div class="lang-toggle" id="lang-toggle">
+            <button type="button" class="lang-btn" data-locale="en-US" id="lang-en">English</button>
+            <button type="button" class="lang-btn" data-locale="fil-PH" id="lang-fil">Filipino</button>
+          </div>
         </div>
         <div class="voice-language-picker voice-picker-wide">
           <label for="voice-name">Voice</label>
@@ -349,14 +361,19 @@ function setAssistantMode(mode) {
 }
 
 function populateVoiceLanguageOptions() {
-  const select = document.getElementById('voice-language');
-  if (!select) return;
-
+  // Render language toggle (English / Filipino)
+  const toggle = document.getElementById('lang-toggle');
+  if (!toggle) return;
   const currentLocale = SpeechSettings.getLocale();
-  select.innerHTML = SpeechSettings.getOptions()
-    .map(option => `<option value="${option.value}">${option.label}</option>`)
-    .join('');
-  select.value = currentLocale;
+  const wantFil = String(currentLocale || '').toLowerCase().startsWith('fil');
+  const btnEn = document.getElementById('lang-en');
+  const btnFil = document.getElementById('lang-fil');
+  if (btnEn) btnEn.classList.toggle('active', !wantFil);
+  if (btnFil) btnFil.classList.toggle('active', wantFil);
+
+  // attach click handlers
+  if (btnEn) btnEn.onclick = () => changeVoiceLanguage('en-US');
+  if (btnFil) btnFil.onclick = () => changeVoiceLanguage('fil-PH');
 }
 
 function populateVoiceNameOptions() {
@@ -372,10 +389,31 @@ function populateVoiceNameOptions() {
 
 function changeVoiceLanguage(value) {
   const locale = SpeechSettings.setLocale(value);
-  const select = document.getElementById('voice-language');
-  if (select && select.value !== locale) select.value = locale;
+  // update toggle UI
+  try {
+    const btnEn = document.getElementById('lang-en');
+    const btnFil = document.getElementById('lang-fil');
+    if (btnEn) btnEn.classList.toggle('active', String(locale || '').toLowerCase().indexOf('fil') === -1);
+    if (btnFil) btnFil.classList.toggle('active', String(locale || '').toLowerCase().startsWith('fil'));
+  } catch (e) {}
+
   const voiceSelect = document.getElementById('voice-name');
-  if (voiceSelect) voiceSelect.value = 'auto';
+  // repopulate name options to prefer Filipino voices when locale changed
+  populateVoiceNameOptions();
+  if (voiceSelect) {
+    // if filipino, try to pick cloud or first filipino option
+    const wantFil = String(locale || '').toLowerCase().startsWith('fil');
+    if (wantFil) {
+      const opt = Array.from(voiceSelect.options).find(o => String(o.value).toLowerCase().startsWith('cloud-fil'))
+        || voiceSelect.options[0];
+      if (opt) voiceSelect.value = opt.value;
+    } else {
+      if (Array.from(voiceSelect.options).some(o => o.value === 'auto')) voiceSelect.value = 'auto';
+      else if (voiceSelect.options.length) voiceSelect.selectedIndex = 0;
+    }
+    // keep fixed width via CSS (do not let content resize the dropdown)
+    voiceSelect.style.width = voiceSelect.style.width || '240px';
+  }
 
   if (STT.isRecording) {
     STT.stop();
@@ -385,11 +423,12 @@ function changeVoiceLanguage(value) {
     setAssistantMode('idle');
   }
 
-  if (state.lastAiText) {
-    TTS.speak(state.lastAiText, {
-      onEnd: () => { state.isLocked = false; }
-    });
-  }
+  // After changing language, translate displayed questions to the selected language (text only)
+  try {
+    const wantFil = String(locale || '').toLowerCase().startsWith('fil');
+    if (wantFil) translateAllQuestions('tl');
+    else translateAllQuestions('en');
+  } catch (e) { console.error('changeVoiceLanguage translate error', e); }
 }
 
 function changeVoiceName(value) {

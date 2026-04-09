@@ -81,14 +81,10 @@ function startClock(elementId) {
 }
 
 // ── TTS ───────────────────────────────────────────────────────
+// Only expose English and Filipino (Tagalog)
 const VOICE_LANGUAGE_OPTIONS = [
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'en-PH', label: 'English (PH)' },
-  { value: 'fil-PH', label: 'Filipino' },
-  { value: 'es-ES', label: 'Spanish' },
-  { value: 'ja-JP', label: 'Japanese' },
-  { value: 'ko-KR', label: 'Korean' },
-  { value: 'zh-CN', label: 'Chinese' }
+  { value: 'en-US', label: 'English' },
+  { value: 'fil-PH', label: 'Filipino (Tagalog)' }
 ];
 
 const SpeechSettings = {
@@ -121,24 +117,8 @@ const SpeechSettings = {
   },
 
   getOptions() {
-    const voices = window.speechSynthesis?.getVoices?.() || [];
-    const seen = new Set();
-    const options = [];
-
-    for (const option of VOICE_LANGUAGE_OPTIONS) {
-      options.push(option);
-      seen.add(option.value.toLowerCase());
-    }
-
-    for (const voice of voices) {
-      const locale = this.normalizeLocale(voice.lang);
-      const key = locale.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      options.push({ value: locale, label: locale });
-    }
-
-    return options;
+    // Only return configured language options (English + Filipino)
+    return VOICE_LANGUAGE_OPTIONS.slice();
   },
 
   getVoiceName() {
@@ -179,6 +159,8 @@ const SpeechSettings = {
     const voices = window.speechSynthesis?.getVoices?.() || [];
     return [...voices]
       .filter(voice => {
+        // Exclude voices with undesirable names (e.g., Wilson)
+        if (/wilson/i.test(voice.name || '')) return false;
         const voiceLocale = this.normalizeLocale(voice.lang).toLowerCase();
         const normalizedLocale = this.normalizeLocale(locale).toLowerCase();
         const primaryLanguage = normalizedLocale.split('-')[0];
