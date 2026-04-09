@@ -588,7 +588,7 @@ async function finishInterview() {
 
   setTimeout(async () => {
     showTyping(false);
-    let msg = `Excellent work, ${name}! 🎉 You've completed all ${state.totalQuestions} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
+    let msg = `Excellent work, ${name}! You've completed all ${state.totalQuestions} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
 
     if (state.interviewId && applicant?.id && !state.interviewId.startsWith('local')) {
       try {
