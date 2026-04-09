@@ -1,8 +1,8 @@
-// backend/routes/interviews.js
 const express = require('express');
 const router = express.Router();
 const { dbInsert, dbSelect, dbSelectOne, dbUpdate } = require('../db/supabase');
 const { callN8nWorkflow, isN8nEnabled } = require('../services/n8n');
+const { translateText } = require('../services/google-translate');
 
 const FALLBACK_QUESTIONS = [
   {
@@ -76,7 +76,7 @@ async function buildInterviewContext(interviewId, applicantId) {
   };
 }
 
-// POST /api/interviews â€” start new interview
+// POST /api/interviews — start new interview
 router.post('/', async (req, res) => {
   try {
     const { applicant_id, total_questions } = req.body;
@@ -95,7 +95,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/interviews/:id/next-question â€” get next question (n8n/fallback)
+// POST /api/interviews/:id/next-question — get next question (n8n/fallback)
 router.post('/:id/next-question', async (req, res) => {
   try {
     const { applicant_id } = req.body;
@@ -125,17 +125,39 @@ router.post('/:id/next-question', async (req, res) => {
       ? { ...n8nResult.question, source: 'n8n' }
       : { ...fallback, source: 'fallback' };
 
-    // If client requested a locale and asked for Filipino, translate fallback questions
+    // If client requested a locale, attempt server-side translation for both fallback and n8n questions
     try {
       const locale = (req.body && req.body.locale) ? String(req.body.locale).toLowerCase() : '';
-      const wantFil = locale.startsWith('fil') || locale.startsWith('tl');
-      if (wantFil && selected.source === 'fallback') {
-        const qidx = questionIndex;
-        if (TRANSLATIONS_TL[qidx]) {
-          selected.question_label = TRANSLATIONS_TL[qidx].label;
-          selected.question_text = TRANSLATIONS_TL[qidx].text;
-          selected.label = TRANSLATIONS_TL[qidx].label;
-          selected.text = TRANSLATIONS_TL[qidx].text;
+      const lang = locale.split('-')[0] || '';
+      const qidx = questionIndex;
+
+      // Prefer static Tagalog translations for fallback questions when available
+      const wantFil = lang.startsWith('fil') || lang.startsWith('tl');
+      if (wantFil && selected.source === 'fallback' && TRANSLATIONS_TL[qidx]) {
+        selected.question_label = TRANSLATIONS_TL[qidx].label;
+        selected.question_text = TRANSLATIONS_TL[qidx].text;
+        selected.label = TRANSLATIONS_TL[qidx].label;
+        selected.text = TRANSLATIONS_TL[qidx].text;
+      } else if (lang) {
+        // Translate the selected content server-side regardless of source
+        try {
+          const target = (lang === 'fil') ? 'tl' : lang;
+          // Translate label and text (if present). Use source text if translation fails.
+          const labelToTranslate = selected.label || selected.question_label || '';
+          const textToTranslate = selected.text || selected.question_text || '';
+          const translatedLabel = labelToTranslate ? await translateText(labelToTranslate, target) : '';
+          const translatedText = textToTranslate ? await translateText(textToTranslate, target) : '';
+
+          if (translatedLabel) {
+            selected.question_label = translatedLabel;
+            selected.label = translatedLabel;
+          }
+          if (translatedText) {
+            selected.question_text = translatedText;
+            selected.text = translatedText;
+          }
+        } catch (err) {
+          // If translation fails, fall back to original text silently
         }
       }
     } catch (e) {
@@ -157,7 +179,7 @@ router.post('/:id/next-question', async (req, res) => {
   }
 });
 
-// PATCH /api/interviews/:id/complete â€” mark as complete
+// PATCH /api/interviews/:id/complete — mark as complete
 router.patch('/:id/complete', async (req, res) => {
   try {
     const { questions_answered, duration_seconds } = req.body;
@@ -174,7 +196,7 @@ router.patch('/:id/complete', async (req, res) => {
   }
 });
 
-// POST /api/interviews/:id/responses â€” save a response
+// POST /api/interviews/:id/responses — save a response
 router.post('/:id/responses', async (req, res) => {
   try {
     const { applicant_id, question_index, question_label, question_text, answer_text, input_method } = req.body;
@@ -201,7 +223,7 @@ router.post('/:id/responses', async (req, res) => {
   }
 });
 
-// POST /api/interviews/:id/final-summary â€” get final summary (n8n/fallback)
+// POST /api/interviews/:id/final-summary — get final summary (n8n/fallback)
 router.post('/:id/final-summary', async (req, res) => {
   try {
     const { applicant_id } = req.body;
@@ -211,7 +233,7 @@ router.post('/:id/final-summary', async (req, res) => {
     if (!context.interview) return res.status(404).json({ success: false, error: 'Interview not found' });
 
     const firstName = context.applicant?.full_name?.split(' ')?.[0] || 'there';
-    const fallbackSummary = `Excellent work, ${firstName}! You've completed all ${context.interview.total_questions || 5} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
+    const fallbackSummary = `Excellent work, ${firstName}! \uD83C\uDF89 You've completed all ${context.interview.total_questions || 5} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
 
     const n8nResult = await callN8nWorkflow('final_summary', {
       interview_id: req.params.id,
