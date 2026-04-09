@@ -141,6 +141,9 @@ router.post('/:id/next-question', async (req, res) => {
     // If client requested a locale and asked for Filipino, translate fallback questions
     try {
       const locale = (req.body && req.body.locale) ? String(req.body.locale).toLowerCase() : '';
+      const lang = locale.split('-')[0] || '';
+      const qidx = questionIndex;
+
       const wantFil = locale.startsWith('fil') || locale.startsWith('tl');
       if (wantFil && selected.source === 'fallback') {
         const qidx = questionIndex;
@@ -149,22 +152,33 @@ router.post('/:id/next-question', async (req, res) => {
           selected.question_text = TRANSLATIONS_TL[qidx].text;
           selected.label = TRANSLATIONS_TL[qidx].label;
           selected.text = TRANSLATIONS_TL[qidx].text;
+        } else if (lang) {
+            // Translate the selected content server-side regardless of source
+           try {
+              const target = (lang === 'fil') ? 'tl' : lang;
+               // Translate label and text (if present). Use source text if translation fails.
+              const labelToTranslate = selected.label || selected.question_label || '';
+              const textToTranslate = selected.text || selected.question_text || '';
+              const translatedLabel = labelToTranslate ? await translateText(labelToTranslate, target) : '';
+              const translatedText = textToTranslate ? await translateText(textToTranslate, target) : '';
+
+              if (translatedLabel) {
+                    selected.question_label = translatedLabel;
+                    selected.label = translatedLabel;
+              }
+              if (translatedText) {
+                    selected.question_text = translatedText;
+                    selected.text = translatedText;
+              }
+           } catch (err) {
+               // If translation fails, fall back to original text silently
+           }
         }
       }
     } catch (e) {
       // ignore translation errors and return selected as-is
     }
 
-    res.json({
-      success: true,
-      data: {
-        done: false,
-        question_index: questionIndex,
-        question_label: selected.label,
-        question_text: selected.text,
-        source: selected.source
-      }
-    });
       res.json({
           success: true,
           data: {
