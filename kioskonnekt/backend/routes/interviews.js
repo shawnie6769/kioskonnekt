@@ -27,6 +27,30 @@ const FALLBACK_QUESTIONS = [
   }
 ];
 
+// Tagalog translations for fallback questions
+const TRANSLATIONS_TL = [
+    {
+        label: 'Ipakilala ang Iyong Sarili',
+        text: "Kumusta, ako si Konnekt at ako ang gagabay sa iyo sa panayam na ito. Magsimula tayo sa isang simpleng tanong: maaari mo bang ipakilala ang iyong sarili? Ikuwento mo nang kaunti ang iyong pinagmulan, mga interes, at kung ano ang natatangi sa iyo."
+    },
+    {
+        label: 'Bakit ang Programang Ito?',
+        text: "Salamat. Nais kong mas makilala ang iyong akademikong direksyon. Ano ang nag-udyok sa iyo na piliin ang programang ito sa aming unibersidad? At ano ang mga bagay na sa tingin mo ay akma sa iyo sa larangang ito?"
+    },
+    {
+        label: 'Iyong mga Lakas bilang Mag-aaral',
+        text: "Mabuti iyon. Ang bawat mag-aaral ay may kani-kaniyang lakas na naiaambag sa pagkatuto. Ano-ano ang iyong mga katangian, gawi, o kasanayan na nakatutulong sa iyong magtagumpay bilang isang mag-aaral?"
+    },
+    {
+        label: 'Pagharap sa mga Hamon',
+        text: "Pag-usapan naman natin kung paano mo hinaharap ang mga pagsubok. Kapag nahihirapan ka sa pag-aaral o may mga bagay na hindi naaayon sa plano, paano mo ito hinaharap at nalalampasan?"
+    },
+    {
+        label: 'Mga Layunin Pagkatapos Magtapos',
+        text: "Magaling. Para sa huling tanong: sa pagtingin sa hinaharap, ano ang iyong mga layunin pagkatapos mong makapagtapos? Saan mo nakikita ang iyong sarili sa loob ng lima hanggang sampung taon?"
+    }
+];
+
 function getFallbackQuestion(index) {
   return FALLBACK_QUESTIONS[index] || {
     label: `Question ${index + 1}`,
@@ -97,9 +121,26 @@ router.post('/:id/next-question', async (req, res) => {
       documents: context.documents
     });
 
-    const selected = n8nResult.success && n8nResult.question
+    let selected = n8nResult.success && n8nResult.question
       ? { ...n8nResult.question, source: 'n8n' }
       : { ...fallback, source: 'fallback' };
+
+    // If client requested a locale and asked for Filipino, translate fallback questions
+    try {
+      const locale = (req.body && req.body.locale) ? String(req.body.locale).toLowerCase() : '';
+      const wantFil = locale.startsWith('fil') || locale.startsWith('tl');
+      if (wantFil && selected.source === 'fallback') {
+        const qidx = questionIndex;
+        if (TRANSLATIONS_TL[qidx]) {
+          selected.question_label = TRANSLATIONS_TL[qidx].label;
+          selected.question_text = TRANSLATIONS_TL[qidx].text;
+          selected.label = TRANSLATIONS_TL[qidx].label;
+          selected.text = TRANSLATIONS_TL[qidx].text;
+        }
+      }
+    } catch (e) {
+      // ignore translation errors and return selected as-is
+    }
 
     res.json({
       success: true,

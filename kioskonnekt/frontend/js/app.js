@@ -345,3 +345,79 @@ function requireSession() {
   if (!applicant?.id) { navigateTo('/'); return false; }
   return true;
 }
+
+// Translations for fallback questions (Tagalog / Filipino)
+const TRANSLATIONS = {
+  'tl': [
+    {
+      label: 'Ipakilala ang iyong sarili',
+      text: "Kumusta, ako si Konnekt, at gagabayan kita sa iyong panayam ngayon. Magsimula tayo sa isang simpleng tanong. Sabihin mo sa akin nang kaunti ang tungkol sa iyong sarili, kabilang ang iyong pinagmulan, mga interes, at kung ano ang nagpapakilala sa iyo."
+    },
+    {
+      label: 'Bakit ang programang ito?',
+      text: "Salamat. Gusto kong malaman pa ang tungkol sa iyong akademikong direksyon. Ano ang dahilan mong piliin ang programang ito sa aming unibersidad, at ano ang nararamdaman mong tumutugma sa iyo sa larangang ito?"
+    },
+    {
+      label: 'Ang iyong mga lakas bilang mag-aaral',
+      text: "Malaking tulong iyan. Ang bawat estudyante ay nagdadala ng iba't ibang lakas sa silid-aralan. Anong mga katangian, gawi, o kasanayan ang tumutulong sa iyo upang magtagumpay bilang isang mag-aaral?"
+    },
+    {
+      label: 'Pagharap sa mga hamon',
+      text: "Pag-usapan natin ang katatagan. Kapag naging mahirap ang pag-aaral o hindi ayon sa plano ang isang bagay, paano ka karaniwang humaharap at nagpapatuloy?"
+    },
+    {
+      label: 'Mga layunin pagkatapos magtapos',
+      text: "Magaling, at ito ang huling tanong. Sa pagtingin sa hinaharap, anong uri ng kinabukasan ang iyong nilalayon pagkatapos ng pagtatapos, at saan mo gustong makita ang iyong sarili sa susunod na lima hanggang sampung taon?"
+    }
+  ]
+};
+
+function getFallbackQuestion(idx) {
+  const locale = (SpeechSettings.getLocale() || '').toLowerCase();
+  const wantFil = locale.startsWith('fil') || locale.startsWith('tl');
+  if (wantFil && TRANSLATIONS['tl'] && TRANSLATIONS['tl'][idx]) return TRANSLATIONS['tl'][idx];
+  // FALLBACK_QUESTIONS is defined in the interview page; if available, use it
+  try {
+    if (typeof FALLBACK_QUESTIONS !== 'undefined' && FALLBACK_QUESTIONS[idx]) return FALLBACK_QUESTIONS[idx];
+  } catch (e) {}
+  return { label: `Question ${idx + 1}`, text: 'Please share your answer for this part of the interview.' };
+}
+
+// Translate currently-rendered questions (text-only) and update cached askedQuestions
+function translateAllQuestions(langCode) {
+  try {
+    const wantFil = String(langCode || '').toLowerCase().startsWith('t');
+    // Update any already-rendered AI bubbles
+    const bubbles = document.querySelectorAll('#chat-messages .chat-row.ai');
+    bubbles.forEach((row, i) => {
+      const qIdx = i; // bubbles are appended in question order
+      const trans = wantFil ? (TRANSLATIONS['tl'] || [])[qIdx] : null;
+      if (trans) {
+        const chip = row.querySelector('.q-chip');
+        const bubble = row.querySelector('.bubble-ai');
+        if (chip) chip.textContent = `Q${qIdx + 1} · ${trans.label}`;
+        if (bubble) bubble.textContent = trans.text;
+      } else {
+        // revert to original fallback if available
+        try {
+          if (typeof FALLBACK_QUESTIONS !== 'undefined' && FALLBACK_QUESTIONS[qIdx]) {
+            const orig = FALLBACK_QUESTIONS[qIdx];
+            const chip = row.querySelector('.q-chip');
+            const bubble = row.querySelector('.bubble-ai');
+            if (chip) chip.textContent = `Q${qIdx + 1} · ${orig.label}`;
+            if (bubble) bubble.textContent = orig.text;
+          }
+        } catch (e) {}
+      }
+    });
+
+    // Also update any cached askedQuestions so future navigation shows translated labels
+    if (state && state.askedQuestions && state.askedQuestions.length) {
+      state.askedQuestions = state.askedQuestions.map((q, idx) => {
+        const trans = wantFil ? (TRANSLATIONS['tl'] || [])[idx] : null;
+        if (trans) return { label: trans.label, text: trans.text };
+        return q; // leave dynamic server-provided text intact if not translating
+      });
+    }
+  } catch (e) { console.error('translateAllQuestions error', e); }
+}

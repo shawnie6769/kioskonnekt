@@ -451,7 +451,8 @@ async function resolveQuestion(idx) {
   if (state.interviewId && applicant?.id && !state.interviewId.startsWith('local')) {
     try {
       const res = await API.post(`/interviews/${state.interviewId}/next-question`, {
-        applicant_id: applicant.id
+        applicant_id: applicant.id,
+        locale: SpeechSettings.getLocale()
       });
       if (res?.success && res.data && !res.data.done && res.data.question_text) {
         const dynamicQuestion = {
@@ -464,10 +465,12 @@ async function resolveQuestion(idx) {
     } catch (e) {}
   }
 
-  const fallback = FALLBACK_QUESTIONS[idx] || {
-    label: `Question ${idx + 1}`,
-    text: 'Please share your answer for this part of the interview.'
-  };
+  const fallback = (typeof getFallbackQuestion === 'function')
+    ? getFallbackQuestion(idx)
+    : (FALLBACK_QUESTIONS[idx] || {
+      label: `Question ${idx + 1}`,
+      text: 'Please share your answer for this part of the interview.'
+    });
   state.askedQuestions[idx] = fallback;
   return fallback;
 }
