@@ -7,7 +7,7 @@ const helmet = require('helmet');
 
 const { initSupabase, seedDemoData } = require('./db/supabase');
 const applicantsRouter = require('./routes/applicants');
-const interviewsRouter = require('./routes/interviews');
+const interviewsRouter = require('./routes/interviews.updated');
 const documentsRouter = require('./routes/documents');
 const adminRouter = require('./routes/admin');
 
