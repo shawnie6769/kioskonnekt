@@ -100,7 +100,7 @@
             <!-- OCR overlay -->
             <div id="ocr-overlay" style="display:none;position:absolute;inset:0;background:rgba(16,185,129,0.08);border:2px solid var(--green);border-radius:20px;align-items:center;justify-content:center;z-index:6;">
               <div style="background:rgba(16,185,129,0.9);color:#fff;padding:12px 24px;border-radius:12px;font-size:16px;font-weight:700;">
-                ✓ Document Detected — OCR Complete
+                ✓ Document Detected — Text Extraction Complete
               </div>
             </div>
           </div>
@@ -331,7 +331,7 @@ async function captureDoc() {
   const overlay = document.getElementById('ocr-overlay');
   const overlayMsg = overlay.querySelector('div');
   overlay.style.display = 'flex';
-  if (overlayMsg) overlayMsg.textContent = '🔍 Running OCR validation...';
+  if (overlayMsg) overlayMsg.textContent = '🔍 Running Text Extraction validation...';
 
   try {
     // Send to backend for OCR + validation
@@ -369,7 +369,7 @@ async function captureDoc() {
     capturedCount = captured.filter(Boolean).length;
 
     // Update overlay to success
-    if (overlayMsg) overlayMsg.textContent = '✅ Document Validated — OCR Complete';
+    if (overlayMsg) overlayMsg.textContent = '✅ Document Validated — Text Extraction Complete';
     setTimeout(() => { overlay.style.display = 'none'; }, 2000);
 
     // Update preview
