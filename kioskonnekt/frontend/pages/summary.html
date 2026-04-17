@@ -9,6 +9,7 @@
 <style>
 .kiosk-root { min-height: 100vh; overflow: auto; }
 .kiosk-body { overflow: auto; }
+.kiosk-header.hidden { display: none !important; }
 .response-card {
   padding: 24px 28px;
   background: var(--surface);
@@ -51,9 +52,9 @@
     <div class="badge badge-green" style="font-size:12px;">Step 4 of 4</div>
   </header>
 
-  <div class="kiosk-body" style="background:var(--bg2);">
-    <div style="max-width:900px;margin:0 auto;padding:44px 32px;" id="summary-content" class="summary-content">
-      <div style="text-align:center;margin-bottom:48px;" class="anim-fade-up">
+  <div class="kiosk-body" style="background:var(--bg2);padding-top:8px;">
+    <div style="max-width:900px;margin:0 auto;padding:12px 32px 24px;" id="summary-content" class="summary-content">
+      <div style="text-align:center;margin-bottom:28px;" class="anim-fade-up">
         <div style="font-size:80px;display:inline-block;animation:completeBounce 0.7s cubic-bezier(0.34,1.56,0.64,1) both;">🎉</div>
         <h2 style="font-size:42px;font-weight:900;letter-spacing:-0.02em;margin-top:20px;margin-bottom:10px;">Interview Complete!</h2>
         <p style="font-size:18px;color:var(--text2);">Please review your responses before submitting your application.</p>
@@ -91,6 +92,19 @@
         </button>
       </div>
     </div>
+
+    <div id="submitted-screen" style="display:none; max-width:900px;margin:0 auto;padding:12px 32px 24px;" class="summary-content anim-fade-up">
+      <div style="text-align:center;margin-bottom:48px;">
+        <div style="font-size:80px;display:inline-block;animation:completeBounce 0.7s cubic-bezier(0.34,1.56,0.64,1) both;">🎉</div>
+        <h2 style="font-size:42px;font-weight:900;letter-spacing:-0.02em;margin-top:20px;margin-bottom:10px;">Thank you!</h2>
+        <p style="font-size:18px;color:var(--text2);">Your application has been submitted successfully.</p>
+      </div>
+      <div class="card card-accent-blue" style="padding:36px; text-align:center;">
+        <p style="font-size:18px;color:var(--text);margin-bottom:24px;">Please drop your physical documents into the dropbox at the kiosk station now.</p>
+        <p style="font-size:14px;color:var(--text3);margin-bottom:28px;">A staff member will collect them from the physical document dropbox.</p>
+        <button class="btn btn-primary btn-md btn-full" onclick="resetAndExit()">← New Applicant</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -98,13 +112,10 @@
 <div id="modal-success" class="modal-overlay">
   <div class="modal-box" style="text-align:center;">
     <div style="font-size:80px;animation:completeBounce 0.7s ease both;display:inline-block;margin-bottom:16px;">🎊</div>
-    <h3 style="font-size:32px;font-weight:800;color:#6EE7B7;margin-bottom:12px;">Submitted!</h3>
-    <p style="color:var(--text2);font-size:16px;margin-bottom:8px;">Your interview has been submitted successfully.</p>
+    <h3 id="modal-title" style="font-size:32px;font-weight:800;color:#6EE7B7;margin-bottom:12px;">Thank you!</h3>
+    <p id="modal-message" style="color:var(--text2);font-size:16px;margin-bottom:8px;">Your application has been submitted successfully.</p>
+    <p id="modal-dropbox" style="font-size:14px;color:var(--text3);margin-bottom:24px;"></p>
     <p id="modal-name" style="font-size:20px;font-weight:700;margin-bottom:24px;"></p>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:28px;">
-      <div style="font-size:11px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Reference Number</div>
-      <div class="mono" id="modal-ref" style="font-size:26px;color:var(--accent-bright);letter-spacing:0.06em;"></div>
-    </div>
     <p style="font-size:14px;color:var(--text3);margin-bottom:28px;">You will receive a confirmation at your registered email. The Admissions Office will contact you with the next steps.</p>
     <button class="btn btn-primary btn-md btn-full" onclick="resetAndExit()">← New Applicant</button>
   </div>
@@ -181,12 +192,13 @@ async function submitInterview() {
 
   try {
     await API.patch(`/applicants/${applicant.id}/status`, { status: 'completed' });
-  } catch(e) {}
+  } catch (e) {
+    console.warn('Unable to update applicant status:', e);
+  }
 
-  const ref = 'KK-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random() * 9000));
-  document.getElementById('modal-name').textContent = applicant.full_name;
-  document.getElementById('modal-ref').textContent = ref;
-  document.getElementById('modal-success').classList.add('open');
+  document.querySelector('.kiosk-header')?.classList.add('hidden');
+  document.getElementById('summary-content').style.display = 'none';
+  document.getElementById('submitted-screen').style.display = 'block';
 }
 
 function resetAndExit() {

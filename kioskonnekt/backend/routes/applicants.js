@@ -1,7 +1,65 @@
 // backend/routes/applicants.js
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 const { dbInsert, dbSelect, dbSelectOne, dbUpdate } = require('../db/supabase');
+
+const DROPBOX_TOKEN = process.env.DROPBOX_ACCESS_TOKEN || '';
+const DROPBOX_UPLOAD_PATH = process.env.DROPBOX_UPLOAD_PATH || '/KiosKonnekt';
+
+function sanitizeDropboxName(text) {
+  return String(text || '').trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+async function uploadDocumentToDropbox(uploadPath, imageData) {
+  const base64 = String(imageData || '').replace(/^data:image\/\w+;base64,/, '');
+  const buffer = Buffer.from(base64, 'base64');
+
+  const headers = {
+    Authorization: `Bearer ${DROPBOX_TOKEN}`,
+    'Content-Type': 'application/octet-stream',
+    'Dropbox-API-Arg': JSON.stringify({
+      path: uploadPath,
+      mode: 'add',
+      autorename: true,
+      mute: true,
+      strict_conflict: false
+    })
+  };
+
+  const response = await axios.post('https://content.dropboxapi.com/2/files/upload', buffer, { headers, maxBodyLength: Infinity });
+  return response.data;
+}
+
+async function uploadApplicantDocsToDropbox(applicant, documents) {
+  if (!DROPBOX_TOKEN) {
+    return { uploaded: 0, skipped: true, warning: 'Dropbox access token is not configured.' };
+  }
+
+  const sanitizedApplicant = sanitizeDropboxName(`${applicant.full_name}-${applicant.id}`) || `applicant-${applicant.id}`;
+  const uploads = [];
+
+  for (const document of (documents || [])) {
+    if (!document.image_data) continue;
+
+    const label = sanitizeDropboxName(document.document_label || document.document_type || 'document');
+    const filename = `${label || 'document'}.png`;
+    const uploadPath = `${DROPBOX_UPLOAD_PATH}/${sanitizedApplicant}/${filename}`;
+
+    try {
+      await uploadDocumentToDropbox(uploadPath, document.image_data);
+      uploads.push({ path: uploadPath, document_id: document.id });
+    } catch (uploadError) {
+      throw new Error(`Dropbox upload failed for ${filename}: ${uploadError.message}`);
+    }
+  }
+
+  return { uploaded: uploads.length, uploadedFiles: uploads };
+}
 
 // GET /api/applicants — list all
 router.get('/', async (req, res) => {
@@ -60,6 +118,28 @@ router.post('/', async (req, res) => {
     });
     if (error) throw error;
     res.status(201).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/applicants/:id/submit — finalize applicant and upload documents to Dropbox
+router.post('/:id/submit', async (req, res) => {
+  try {
+    const applicantId = req.params.id;
+    const { data: applicant, error: applicantError } = await dbSelectOne('applicants', applicantId);
+    if (applicantError || !applicant) {
+      return res.status(404).json({ success: false, error: 'Applicant not found' });
+    }
+
+    const { data: documents, error: documentsError } = await dbSelect('documents', { applicant_id: applicantId });
+    if (documentsError) throw documentsError;
+
+    const dropboxResult = await uploadApplicantDocsToDropbox(applicant, documents || []);
+    const { data, error } = await dbUpdate('applicants', applicantId, { status: 'completed' });
+    if (error) throw error;
+
+    res.json({ success: true, data, dropbox: dropboxResult });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
