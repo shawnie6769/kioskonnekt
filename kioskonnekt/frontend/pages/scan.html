@@ -9,6 +9,42 @@
 <style>
 .kiosk-root { min-height: 100vh; overflow: auto; }
 .kiosk-body { overflow: auto; }
+.required-docs-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.progress-panel {
+  margin-top: 16px;
+  padding: 20px;
+  background: var(--surface2);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
+.scan-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(8,13,23,0) 0%, rgba(8,13,23,0.92) 26%, rgba(8,13,23,1) 100%);
+}
+@media (max-width: 768px) {
+  .required-docs-scroll {
+    max-height: calc(100vh - 270px);
+  }
+  .scan-actions {
+    gap: 10px;
+    justify-content: stretch;
+  }
+  .scan-actions .btn {
+    flex: 1;
+  }
+}
 .cam-frame {
   background: var(--surface);
   border: 1.5px solid var(--border);
@@ -64,7 +100,7 @@
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:32px;align-items:start;" class="document-layout">
         <!-- Camera panel -->
-        <div>
+        <div id="camera-panel">
           <!-- Camera frame -->
           <div class="cam-frame" id="cam-frame">
             <video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;object-position:center center;display:none;"></video>
@@ -99,12 +135,13 @@
 
         <!-- Document checklist -->
         <div>
-          <div class="section-eyebrow" style="color:var(--text3);margin-bottom:16px;">Required Documents</div>
-          <div style="margin-bottom:14px;padding:12px 14px;background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.35);border-radius:12px;color:#cdefff;font-size:13px;line-height:1.45;">
-            Please arrange and place your documents in the dropbox in the exact order listed above (1-8). This is the required sequence for document submission.
-          </div>
+          <div class="required-docs-scroll" id="required-docs-scroll">
+            <div class="section-eyebrow" style="color:var(--text3);margin-bottom:16px;">Required Documents</div>
+            <div style="margin-bottom:14px;padding:12px 14px;background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.35);border-radius:12px;color:#cdefff;font-size:13px;line-height:1.45;">
+              Please arrange and place your documents in the dropbox in the exact order listed above (1-8). This is the required sequence for document submission.
+            </div>
 
-          <div style="display:flex;flex-direction:column;gap:12px;" id="doc-list">
+            <div style="display:flex;flex-direction:column;gap:12px;" id="doc-list">
             <div class="doc-card" id="doc-0" onclick="selectDoc(0,'PLV CAT 2026 Application Form','application_form','📝')">
               <div style="font-size:36px;">📝</div>
               <div style="flex:1;">
@@ -184,10 +221,11 @@
               <div id="doc-7-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
               <div id="doc-7-status" style="font-size:22px;color:var(--text3);">○</div>
             </div>
+            </div>
           </div>
 
           <!-- Progress -->
-          <div style="margin-top:24px;padding:20px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);">
+          <div class="progress-panel" id="progress-panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
               <span style="font-size:13px;color:var(--text2);font-weight:500;">Scanning Progress</span>
               <span class="mono" style="font-size:13px;color:var(--text3);" id="scan-count-text">0 / 8</span>
@@ -204,7 +242,7 @@
       </div>
 
       <!-- Actions -->
-      <div style="display:flex;gap:16px;justify-content:flex-end;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">
+      <div class="scan-actions">
         <button class="btn btn-outline btn-md" onclick="navigateTo('/profile')">← Back</button>
         <button class="btn btn-ghost btn-md" onclick="skipDocs()" style="color:var(--text3);">Skip for now</button>
         <button class="btn btn-primary btn-lg" id="btn-next" onclick="proceedToInterview()" disabled>
@@ -693,9 +731,29 @@ function showHelp() {
   document.getElementById('modal-help').classList.add('open');
 }
 
+function syncRequiredDocsHeight() {
+  const docsScroll = document.getElementById('required-docs-scroll');
+  const cameraPanel = document.getElementById('camera-panel');
+  const progressPanel = document.getElementById('progress-panel');
+  if (!docsScroll || !cameraPanel) return;
+
+  if (window.innerWidth <= 768) {
+    docsScroll.style.maxHeight = 'calc(100vh - 270px)';
+    return;
+  }
+
+  const panelHeight = cameraPanel.offsetHeight;
+  const progressHeight = progressPanel?.offsetHeight || 120;
+  const targetHeight = Math.max(240, panelHeight - progressHeight - 16);
+  docsScroll.style.maxHeight = `${targetHeight}px`;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   startCamera();
+  syncRequiredDocsHeight();
 });
+
+window.addEventListener('resize', syncRequiredDocsHeight);
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeImagePreview();
