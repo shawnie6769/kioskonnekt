@@ -20,6 +20,7 @@
   width: 100%;
   max-width: 420px;
   min-height: 420px;
+  margin: 0 auto;
 }
 @media (max-width: 768px) {
   .document-layout { grid-template-columns: 1fr !important; }
@@ -29,33 +30,11 @@
   .cam-frame { min-height: 320px; }
   .kiosk-body { padding: 12px 12px !important; }
 }
-.cam-corners::before, .cam-corners::after,
-.cam-frame-inner::before, .cam-frame-inner::after {
-  content: ''; position: absolute; width: 28px; height: 28px;
-  border-color: var(--accent); border-style: solid;
-  pointer-events: none; z-index: 5;
-}
-.cam-corners::before { top: 12px; left: 12px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-.cam-corners::after  { top: 12px; right: 12px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
-.cam-frame-inner::before { bottom: 12px; left: 12px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
-.cam-frame-inner::after  { bottom: 12px; right: 12px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-.scan-line {
-  position: absolute; left: 12px; right: 12px; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--teal), transparent);
-  box-shadow: 0 0 8px var(--teal);
-  animation: scanMove 2.5s ease-in-out infinite;
-  z-index: 4;
-}
-@keyframes scanMove {
-  0% { top: 15%; }
-  50% { top: 80%; }
-  100% { top: 15%; }
-}
 </style>
 </head>
 <body>
 <div class="kiosk-root">
-  <div class="orb orb-teal" style="width:500px;height:500px;top:-150px;right:-100px;"></div>
+
 
   <header class="kiosk-header">
     <div class="logo"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
@@ -80,25 +59,22 @@
       <div style="margin-bottom:28px;">
         <div class="section-eyebrow" style="color:var(--teal);margin-bottom:10px;">Step 2 of 4</div>
         <h2 style="font-size:36px;font-weight:800;letter-spacing:-0.02em;">Document Scanning</h2>
-        <p style="color:var(--text2);margin-top:8px;font-size:15px;">Select a document type, then capture it using the camera below.</p>
+        <p style="color:var(--text2);margin-top:8px;font-size:15px;">Select a document type, then capture it using the live camera feed below.</p>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:32px;align-items:start;" class="document-layout">
         <!-- Camera panel -->
         <div>
           <!-- Camera frame -->
-          <div class="cam-frame cam-corners cam-frame-inner" id="cam-frame">
-            <video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:none;"></video>
+          <div class="cam-frame" id="cam-frame">
+            <video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;object-position:center center;display:none;"></video>
             <canvas id="canvas" style="display:none;"></canvas>
-            <img id="preview" src="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
 
             <div id="cam-placeholder" style="text-align:center;color:var(--text3);padding:32px;flex-direction:column;display:flex;align-items:center;gap:12px;">
               <div style="font-size:56px;">📷</div>
               <div style="font-size:16px;font-weight:500;color:var(--text2);">Camera Preview</div>
-              <div style="font-size:13px;">Select a document, then tap "Start Camera"</div>
+              <div style="font-size:13px;">Initializing camera...</div>
             </div>
-
-            <div id="scan-line" class="scan-line" style="display:none;"></div>
 
             <!-- OCR overlay -->
             <div id="ocr-overlay" style="display:none;position:absolute;inset:0;background:rgba(16,185,129,0.08);border:2px solid var(--green);border-radius:20px;align-items:center;justify-content:center;z-index:6;">
@@ -109,10 +85,7 @@
           </div>
 
           <!-- Camera controls -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
-            <button class="btn btn-ghost btn-md btn-full" id="btn-start-cam" onclick="startCamera()">
-              📷 Start Camera
-            </button>
+          <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px;">
             <button class="btn btn-primary btn-md btn-full" id="btn-capture" onclick="captureDoc()" disabled>
               ⚡ Capture
             </button>
@@ -127,33 +100,89 @@
         <!-- Document checklist -->
         <div>
           <div class="section-eyebrow" style="color:var(--text3);margin-bottom:16px;">Required Documents</div>
+          <div style="margin-bottom:14px;padding:12px 14px;background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.35);border-radius:12px;color:#cdefff;font-size:13px;line-height:1.45;">
+            Please arrange and place your documents in the dropbox in the exact order listed above (1-8). This is the required sequence for document submission.
+          </div>
 
           <div style="display:flex;flex-direction:column;gap:12px;" id="doc-list">
-            <div class="doc-card" id="doc-0" onclick="selectDoc(0,'PSA Birth Certificate','psa_birth_cert','🪪')">
-              <div style="font-size:36px;">🪪</div>
+            <div class="doc-card" id="doc-0" onclick="selectDoc(0,'PLV CAT 2026 Application Form','application_form','📝')">
+              <div style="font-size:36px;">📝</div>
               <div style="flex:1;">
-                <div style="font-weight:600;font-size:16px;">PSA Birth Certificate</div>
-                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Philippine Statistics Authority</div>
+                <div style="font-weight:600;font-size:16px;">1. Application Form</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Fully accomplished PLV CAT 2026 form</div>
               </div>
+              <div id="doc-0-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
               <div id="doc-0-status" style="font-size:22px;color:var(--text3);">○</div>
             </div>
 
-            <div class="doc-card" id="doc-1" onclick="selectDoc(1,'Form 138 (Report Card)','form_138','📋')">
+            <div class="doc-card" id="doc-1" onclick="selectDoc(1,'Grade 11 Form 138 (Sem 1 and 2)','grade11_form138','📋')">
               <div style="font-size:36px;">📋</div>
               <div style="flex:1;">
-                <div style="font-weight:600;font-size:16px;">Form 138 — Report Card</div>
-                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Senior High School Grades</div>
+                <div style="font-weight:600;font-size:16px;">2. Grade 11 Form 138</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Certified true copy, GWA 83% or above</div>
               </div>
+              <div id="doc-1-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
               <div id="doc-1-status" style="font-size:22px;color:var(--text3);">○</div>
             </div>
 
-            <div class="doc-card" id="doc-2" onclick="selectDoc(2,'Good Moral Certificate','good_moral','📜')">
-              <div style="font-size:36px;">📜</div>
+            <div class="doc-card" id="doc-2" onclick="selectDoc(2,'Grade 12 Form 138 (Sem 1)','grade12_form138_sem1','📘')">
+              <div style="font-size:36px;">📘</div>
               <div style="flex:1;">
-                <div style="font-weight:600;font-size:16px;">Good Moral Certificate</div>
-                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Issued by your school</div>
+                <div style="font-weight:600;font-size:16px;">3. Grade 12 Form 138</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Certified true copy (1st sem), GWA 83% or above</div>
               </div>
+              <div id="doc-2-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
               <div id="doc-2-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-3" onclick="selectDoc(3,'Grade 12 School ID (Front and Back)','grade12_school_id','🪪')">
+              <div style="font-size:36px;">🪪</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">4. Grade 12 School ID</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Certified true copy, front and back</div>
+              </div>
+              <div id="doc-3-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
+              <div id="doc-3-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-4" onclick="selectDoc(4,'NSO or PSA Birth Certificate','birth_certificate','📄')">
+              <div style="font-size:36px;">📄</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">5. NSO/PSA Birth Certificate</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Clear whole-page photocopy</div>
+              </div>
+              <div id="doc-4-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
+              <div id="doc-4-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-5" onclick="selectDoc(5,'Applicant Voter\'s Certification (COMELEC)','applicant_voter_cert','🗳️')">
+              <div style="font-size:36px;">🗳️</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">6. Applicant Voter's Cert</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">COMELEC, Valenzuela voter, issued 2022 or later</div>
+              </div>
+              <div id="doc-5-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
+              <div id="doc-5-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-6" onclick="selectDoc(6,'Parent Voter\'s Certification (COMELEC)','parent_voter_cert','👨‍👩‍👧')">
+              <div style="font-size:36px;">👨‍👩‍👧</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">7. Parent Voter's Cert</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">One or both parents, issued 2022 or later</div>
+              </div>
+              <div id="doc-6-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
+              <div id="doc-6-status" style="font-size:22px;color:var(--text3);">○</div>
+            </div>
+
+            <div class="doc-card" id="doc-7" onclick="selectDoc(7,'Two Passport Size ID Pictures','passport_photos','🖼️')">
+              <div style="font-size:36px;">🖼️</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:16px;">8. 2 Passport ID Photos</div>
+                <div style="font-size:13px;color:var(--text3);margin-top:3px;">Latest, identical, white bg, with proper name tag</div>
+              </div>
+              <div id="doc-7-thumbs" style="display:none;max-width:180px;display:flex;gap:6px;overflow-x:auto;flex-shrink:0;"></div>
+              <div id="doc-7-status" style="font-size:22px;color:var(--text3);">○</div>
             </div>
           </div>
 
@@ -161,7 +190,7 @@
           <div style="margin-top:24px;padding:20px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
               <span style="font-size:13px;color:var(--text2);font-weight:500;">Scanning Progress</span>
-              <span class="mono" style="font-size:13px;color:var(--text3);" id="scan-count-text">0 / 3</span>
+              <span class="mono" style="font-size:13px;color:var(--text3);" id="scan-count-text">0 / 8</span>
             </div>
             <div class="progress-track">
               <div class="progress-fill" id="scan-progress" style="width:0%;"></div>
@@ -171,8 +200,6 @@
             </div>
           </div>
 
-          <!-- Thumbnail strip -->
-          <div id="thumb-strip" style="display:none;margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;"></div>
         </div>
       </div>
 
@@ -200,6 +227,29 @@
   </div>
 </div>
 
+<!-- Captured Image Preview Modal -->
+<div id="modal-image-preview" class="modal-overlay" onclick="closePreviewOnBackdrop(event)">
+  <div class="modal-box" style="max-width:760px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;">
+      <h3 id="preview-modal-title" style="font-size:18px;font-weight:700;color:var(--text);">Captured Image Preview</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeImagePreview()">✕ Close</button>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;justify-content:center;max-height:70vh;overflow:auto;">
+      <img id="preview-modal-img" alt="Captured Document Preview" style="max-width:100%;height:auto;border-radius:8px;display:block;">
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div id="preview-modal-meta" style="font-size:13px;color:var(--text2);">Capture 1 of 1</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="btn-preview-prev" class="btn btn-ghost btn-sm" onclick="changePreview(-1)">← Prev</button>
+        <button id="btn-preview-next" class="btn btn-ghost btn-sm" onclick="changePreview(1)">Next →</button>
+        <button id="btn-preview-move-left" class="btn btn-outline btn-sm" onclick="movePreviewCapture(-1)">Move Left</button>
+        <button id="btn-preview-move-right" class="btn btn-outline btn-sm" onclick="movePreviewCapture(1)">Move Right</button>
+        <button id="btn-preview-delete" class="btn btn-danger btn-sm" onclick="deletePreviewCapture()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Help Modal -->
 <div id="modal-help" class="modal-overlay">
   <div class="modal-box" style="max-width:600px;">
@@ -216,14 +266,19 @@
         <li>Position your document within the camera frame</li>
         <li>Ensure the document is well-lit and flat</li>
         <li>Click "Capture" when ready</li>
-        <li>Review the captured image and click "Accept" or "Retake"</li>
+        <li>Repeat for the remaining required documents in order</li>
       </ol>
       
       <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Document Requirements:</h4>
       <ul style="margin-bottom:16px;padding-left:20px;">
-        <li><strong>Report Card/Form 138:</strong> Recent academic record</li>
-        <li><strong>Birth Certificate:</strong> PSA-issued birth certificate</li>
-        <li><strong>Good Moral Certificate:</strong> From your current school</li>
+        <li><strong>1.</strong> PLV CAT 2026 Application Form</li>
+        <li><strong>2.</strong> Grade 11 Form 138 (Sem 1 and 2, 83%+ GWA)</li>
+        <li><strong>3.</strong> Grade 12 Form 138 (Sem 1, 83%+ GWA)</li>
+        <li><strong>4.</strong> Grade 12 School ID (Front and Back)</li>
+        <li><strong>5.</strong> NSO or PSA Birth Certificate (Whole-page copy)</li>
+        <li><strong>6.</strong> Applicant Voter's Certification (COMELEC, 2022+)</li>
+        <li><strong>7.</strong> Parent Voter's Certification (COMELEC, 2022+)</li>
+        <li><strong>8.</strong> Two Passport Size ID Pictures (white background)</li>
       </ul>
       
       <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Tips:</h4>
@@ -245,25 +300,189 @@ if (!requireSession()) {}
 
 let stream = null;
 let selectedDoc = null;
-const captured = [null, null, null];
+const DOCUMENT_COUNT = 8;
+const captured = Array.from({ length: DOCUMENT_COUNT }, () => []);
 let capturedCount = 0;
+const previewState = { docIdx: null, shotIdx: 0 };
 
 function selectDoc(idx, label, type, icon) {
   document.querySelectorAll('.doc-card').forEach((c, i) => {
     c.classList.remove('selected');
-    if (i === idx && !captured[idx]) c.classList.add('selected');
+    if (i === idx) c.classList.add('selected');
   });
   selectedDoc = { idx, label, type, icon };
   document.getElementById('selected-indicator').innerHTML =
-    `<strong>${icon} ${label}</strong> selected — ready to capture`;
+    `<strong>${icon} ${label}</strong> selected - capture one or more photos`;
   document.getElementById('selected-indicator').style.color = 'var(--text2)';
   document.getElementById('selected-indicator').style.borderColor = 'var(--accent)';
+}
+
+function openImagePreview(docIdx, shotIdx) {
+  const modal = document.getElementById('modal-image-preview');
+  if (!modal) return;
+  previewState.docIdx = docIdx;
+  previewState.shotIdx = shotIdx;
+  updatePreviewModal();
+  modal.classList.add('open');
+}
+
+function closeImagePreview() {
+  const modal = document.getElementById('modal-image-preview');
+  if (modal) modal.classList.remove('open');
+  previewState.docIdx = null;
+  previewState.shotIdx = 0;
+}
+
+function closePreviewOnBackdrop(event) {
+  if (event.target?.id === 'modal-image-preview') {
+    closeImagePreview();
+  }
+}
+
+function refreshProgressUI() {
+  capturedCount = captured.filter(docShots => docShots.length > 0).length;
+  const pct = Math.round((capturedCount / DOCUMENT_COUNT) * 100);
+  document.getElementById('scan-progress').style.width = pct + '%';
+  document.getElementById('scan-count-text').textContent = `${capturedCount} / ${DOCUMENT_COUNT}`;
+  const scanMsg = document.getElementById('scan-status-msg');
+  scanMsg.style.color = '';
+  scanMsg.textContent = capturedCount === DOCUMENT_COUNT
+    ? '✅ All documents scanned! You may now proceed.'
+    : `${DOCUMENT_COUNT - capturedCount} more document(s) to scan.`;
+  document.getElementById('btn-next').disabled = capturedCount === 0;
+}
+
+function updateDocCardStatus(docIdx) {
+  const count = captured[docIdx].length;
+  const statusEl = document.getElementById(`doc-${docIdx}-status`);
+  if (statusEl) {
+    statusEl.textContent = count === 0 ? '○' : (count > 1 ? `✓${count}` : '✓');
+    statusEl.style.color = count === 0 ? 'var(--text3)' : 'var(--green)';
+  }
+  const card = document.getElementById(`doc-${docIdx}`);
+  if (card) card.classList.toggle('captured', count > 0);
+}
+
+function renderDocThumbnails(docIdx) {
+  const docThumbs = document.getElementById(`doc-${docIdx}-thumbs`);
+  if (!docThumbs) return;
+  docThumbs.innerHTML = '';
+  const shots = captured[docIdx];
+  if (!shots.length) {
+    docThumbs.style.display = 'none';
+    return;
+  }
+
+  docThumbs.style.display = 'flex';
+  shots.forEach((shot, shotIdx) => {
+    const thumb = document.createElement('img');
+    thumb.src = shot.imageData;
+    thumb.alt = `${shot.label} capture ${shotIdx + 1}`;
+    thumb.style.cssText = 'width:42px;height:58px;object-fit:cover;border-radius:6px;border:2px solid var(--green);flex-shrink:0;cursor:pointer;';
+    thumb.title = `Preview ${shot.label} capture ${shotIdx + 1}`;
+    thumb.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openImagePreview(docIdx, shotIdx);
+    });
+    docThumbs.appendChild(thumb);
+  });
+}
+
+function updatePreviewModal() {
+  if (previewState.docIdx === null) return;
+  const shots = captured[previewState.docIdx] || [];
+  if (!shots.length) {
+    closeImagePreview();
+    return;
+  }
+
+  previewState.shotIdx = Math.max(0, Math.min(previewState.shotIdx, shots.length - 1));
+  const shot = shots[previewState.shotIdx];
+
+  const modalImg = document.getElementById('preview-modal-img');
+  const modalTitle = document.getElementById('preview-modal-title');
+  const modalMeta = document.getElementById('preview-modal-meta');
+  const btnPrev = document.getElementById('btn-preview-prev');
+  const btnNext = document.getElementById('btn-preview-next');
+  const btnMoveLeft = document.getElementById('btn-preview-move-left');
+  const btnMoveRight = document.getElementById('btn-preview-move-right');
+
+  if (modalImg) modalImg.src = shot.imageData;
+  if (modalTitle) modalTitle.textContent = shot.label;
+  if (modalMeta) modalMeta.textContent = `Capture ${previewState.shotIdx + 1} of ${shots.length}`;
+  if (btnPrev) btnPrev.disabled = previewState.shotIdx === 0;
+  if (btnNext) btnNext.disabled = previewState.shotIdx === shots.length - 1;
+  if (btnMoveLeft) btnMoveLeft.disabled = previewState.shotIdx === 0;
+  if (btnMoveRight) btnMoveRight.disabled = previewState.shotIdx === shots.length - 1;
+}
+
+function changePreview(delta) {
+  if (previewState.docIdx === null) return;
+  previewState.shotIdx += delta;
+  updatePreviewModal();
+}
+
+function movePreviewCapture(direction) {
+  if (previewState.docIdx === null) return;
+  const shots = captured[previewState.docIdx];
+  const from = previewState.shotIdx;
+  const to = from + direction;
+  if (!shots || to < 0 || to >= shots.length) return;
+
+  const temp = shots[from];
+  shots[from] = shots[to];
+  shots[to] = temp;
+  previewState.shotIdx = to;
+
+  renderDocThumbnails(previewState.docIdx);
+  updateDocCardStatus(previewState.docIdx);
+  updatePreviewModal();
+}
+
+function deletePreviewCapture() {
+  if (previewState.docIdx === null) return;
+  const docIdx = previewState.docIdx;
+  const shots = captured[docIdx];
+  if (!shots?.length) return;
+
+  const shot = shots[previewState.shotIdx];
+  const captureNumber = previewState.shotIdx + 1;
+  const confirmed = window.confirm(
+    `Delete ${shot?.label || 'this document'} capture ${captureNumber}? This action cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  shots.splice(previewState.shotIdx, 1);
+  if (previewState.shotIdx >= shots.length) {
+    previewState.shotIdx = Math.max(0, shots.length - 1);
+  }
+
+  renderDocThumbnails(docIdx);
+  updateDocCardStatus(docIdx);
+  refreshProgressUI();
+
+  if (!shots.length) {
+    closeImagePreview();
+    document.getElementById('selected-indicator').textContent = 'Capture removed. You can scan this document again.';
+    document.getElementById('selected-indicator').style.color = 'var(--text2)';
+    return;
+  }
+
+  updatePreviewModal();
 }
 
 async function startCamera() {
   const video = document.getElementById('video');
   const placeholder = document.getElementById('cam-placeholder');
   const captureBtn = document.getElementById('btn-capture');
+
+  if (stream && video.srcObject) {
+    if (video.paused) await video.play();
+    video.style.display = 'block';
+    placeholder.style.display = 'none';
+    captureBtn.disabled = false;
+    return;
+  }
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     placeholder.style.display = 'flex';
@@ -275,8 +494,6 @@ async function startCamera() {
     captureBtn.disabled = true;
     return;
   }
-
-  await stopCamera();
 
   try {
     const constraintChain = [
@@ -322,15 +539,13 @@ async function startCamera() {
         placeholder.innerHTML = `
           <div style="font-size:44px;margin-bottom:10px;">📷</div>
           <div style="font-size:15px;font-weight:600;color:var(--text2);">Camera Disconnected</div>
-          <div style="font-size:13px;margin-top:6px;">Tap Start Camera to reconnect.</div>
+          <div style="font-size:13px;margin-top:6px;">Reopen this page to reconnect the camera.</div>
         `;
       };
     }
 
     video.style.display = 'block';
     placeholder.style.display = 'none';
-    document.getElementById('preview').style.display = 'none';
-    document.getElementById('scan-line').style.display = 'block';
     captureBtn.disabled = false;
   } catch(e) {
     console.error('Camera start failed:', e);
@@ -338,10 +553,32 @@ async function startCamera() {
     placeholder.innerHTML = `
       <div style="font-size:44px;margin-bottom:10px;">⚠️</div>
       <div style="font-size:15px;font-weight:600;color:var(--red,#ef4444);">Camera Access Failed</div>
-      <div style="font-size:13px;margin-top:6px;">Please allow camera permission, then tap Start Camera again.</div>
+      <div style="font-size:13px;margin-top:6px;">Please allow camera permission and refresh this page.</div>
     `;
     captureBtn.disabled = true;
   }
+}
+
+function getPortraitImageData(video, canvas) {
+  const srcWidth = video.videoWidth || 720;
+  const srcHeight = video.videoHeight || 1280;
+  const ctx = canvas.getContext('2d');
+
+  if (srcWidth > srcHeight) {
+    canvas.width = srcHeight;
+    canvas.height = srcWidth;
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(video, -srcWidth / 2, -srcHeight / 2, srcWidth, srcHeight);
+    ctx.restore();
+  } else {
+    canvas.width = srcWidth;
+    canvas.height = srcHeight;
+    ctx.drawImage(video, 0, 0, srcWidth, srcHeight);
+  }
+
+  return canvas.toDataURL('image/jpeg', 0.95);
 }
 
 async function captureDoc() {
@@ -350,20 +587,16 @@ async function captureDoc() {
 
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
-  const preview = document.getElementById('preview');
   let imageData;
 
   if (video.style.display === 'none' || !video.srcObject) {
-    alert('Camera is not active. Please tap Start Camera first.');
+    alert('Camera is not active. Re-initializing camera now.');
     await startCamera();
     return;
   }
 
-  // Real camera capture
-  canvas.width = video.videoWidth || 720;
-  canvas.height = video.videoHeight || 1280;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  imageData = canvas.toDataURL('image/jpeg', 0.95);
+  // Force portrait output for saved captures.
+  imageData = getPortraitImageData(video, canvas);
 
   // Show scanning state
   const btnCapture = document.getElementById('btn-capture');
@@ -407,49 +640,20 @@ async function captureDoc() {
     }
 
     // ✅ Validation passed
-    captured[idx] = { label, type, imageData };
-    capturedCount = captured.filter(Boolean).length;
+    captured[idx].push({ label, type, imageData });
 
     // Update overlay to success
     if (overlayMsg) overlayMsg.textContent = '✅ Document Validated — Text Extraction Complete';
     setTimeout(() => { overlay.style.display = 'none'; }, 2000);
 
-    // Update preview
-    preview.src = imageData;
-    preview.style.display = 'block';
-    if (video.style.display !== 'none') video.style.display = 'none';
-    document.getElementById('scan-line').style.display = 'none';
+    // Keep live camera feed active for the next scan.
+    if (video.style.display === 'none') video.style.display = 'block';
 
-    // Update card status
-    const statusEl = document.getElementById(`doc-${idx}-status`);
-    if (statusEl) { statusEl.textContent = '✓'; statusEl.style.color = 'var(--green)'; }
-    const card = document.getElementById(`doc-${idx}`);
-    if (card) { card.classList.remove('selected'); card.classList.add('captured'); }
+    updateDocCardStatus(idx);
+    renderDocThumbnails(idx);
+    refreshProgressUI();
 
-    // Add thumbnail
-    const strip = document.getElementById('thumb-strip');
-    if (strip) {
-      strip.style.display = 'flex';
-      const thumb = document.createElement('div');
-      thumb.style.cssText = 'position:relative;width:72px;height:54px;border-radius:8px;overflow:hidden;border:2px solid var(--green);';
-      thumb.innerHTML = `<img src="${imageData}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:9px;color:#fff;text-align:center;padding:2px;">✓</div>`;
-      strip.appendChild(thumb);
-    }
-
-    // Update progress
-    const pct = Math.round((capturedCount / 3) * 100);
-    document.getElementById('scan-progress').style.width = pct + '%';
-    document.getElementById('scan-count-text').textContent = `${capturedCount} / 3`;
-    const scanMsg = document.getElementById('scan-status-msg');
-    scanMsg.style.color = '';
-    scanMsg.textContent = capturedCount === 3
-      ? '✅ All documents scanned! You may now proceed.'
-      : `${3 - capturedCount} more document(s) to scan.`;
-
-    if (capturedCount > 0) document.getElementById('btn-next').disabled = false;
-
-    selectedDoc = null;
-    document.getElementById('selected-indicator').textContent = '✅ Document validated! Select next or proceed.';
+    document.getElementById('selected-indicator').textContent = '✅ Photo saved for this document. You can capture another or select next.';
     document.getElementById('selected-indicator').style.color = 'var(--green)';
 
   } catch (err) {
@@ -469,7 +673,10 @@ function skipDocs() {
 
 async function proceedToInterview() {
   stopCamera();
-  Session.set(SESSION.DOCUMENTS, captured.filter(Boolean).map(d => ({ label: d.label, type: d.type })));
+  Session.set(
+    SESSION.DOCUMENTS,
+    captured.flatMap(docShots => docShots.map(d => ({ label: d.label, type: d.type })))
+  );
   navigateTo('/interview');
 }
 
@@ -485,6 +692,14 @@ window.addEventListener('beforeunload', stopCamera);
 function showHelp() {
   document.getElementById('modal-help').classList.add('open');
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  startCamera();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeImagePreview();
+});
 </script>
 </body>
 </html>
