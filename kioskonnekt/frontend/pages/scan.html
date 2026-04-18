@@ -68,7 +68,10 @@
       <div class="step-line"></div>
       <div class="step pending"><div class="step-num">4</div><span class="step-label">Summary</span></div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="confirmCancel()">✕ Cancel</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="showHelp()">? Help</button>
+      <button class="btn btn-ghost btn-sm" onclick="confirmCancel()">✕ Cancel</button>
+    </div>
   </header>
 
   <div class="kiosk-body" style="background:var(--bg2);">
@@ -193,6 +196,45 @@
     <div style="display:flex;gap:16px;justify-content:center;">
       <button class="btn btn-ghost btn-md" onclick="closeModal('modal-cancel')">← Keep Going</button>
       <button class="btn btn-danger btn-md" onclick="cancelSession()">Yes, Exit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div id="modal-help" class="modal-overlay">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h3 style="font-size:20px;font-weight:700;">Document Scanning Help</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
+    </div>
+    <div style="line-height:1.6;">
+      <p style="margin-bottom:16px;"><strong>Step 2: Document Scanning</strong> — Capture your admission documents using the camera.</p>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">How to Scan:</h4>
+      <ol style="margin-bottom:16px;padding-left:20px;">
+        <li>Select a document type from the list below</li>
+        <li>Position your document within the camera frame</li>
+        <li>Ensure the document is well-lit and flat</li>
+        <li>Click "Capture" when ready</li>
+        <li>Review the captured image and click "Accept" or "Retake"</li>
+      </ol>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Document Requirements:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Report Card/Form 138:</strong> Recent academic record</li>
+        <li><strong>Birth Certificate:</strong> PSA-issued birth certificate</li>
+        <li><strong>Good Moral Certificate:</strong> From your current school</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Tips:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li>Hold documents steady while capturing</li>
+        <li>Avoid shadows and glare</li>
+        <li>Ensure all text is clearly visible</li>
+        <li>You can retake photos if needed</li>
+      </ul>
+      
+      <p style="margin-top:20px;color:var(--text3);font-size:14px;">All documents are securely stored and will be reviewed by admissions staff.</p>
     </div>
   </div>
 </div>
@@ -439,6 +481,10 @@ async function stopCamera() {
 }
 
 window.addEventListener('beforeunload', stopCamera);
+
+function showHelp() {
+  document.getElementById('modal-help').classList.add('open');
+}
 </script>
 </body>
 </html>

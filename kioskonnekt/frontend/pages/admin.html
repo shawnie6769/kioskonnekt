@@ -79,10 +79,10 @@
       <div class="badge badge-amber">Admin Dashboard</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
-      <div class="dot-live"></div>
       <span style="font-size:13px;color:var(--text3);font-family:var(--mono);" id="clock"></span>
     </div>
     <div style="display:flex;gap:12px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" onclick="showHelp()">? Help</button>
       <span style="font-size:13px;color:var(--text3);" id="admin-user-label">Admin</span>
       <button class="btn btn-danger btn-sm" onclick="logout()">Sign Out</button>
       <button class="btn btn-ghost btn-sm" onclick="navigateTo('/')">← Kiosk</button>
@@ -243,6 +243,37 @@
     </div>
     <div style="padding-top:16px;border-top:1px solid var(--border);">
       <div style="font-size:12px;color:var(--text3);" id="doc-viewer-info">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div id="modal-help" class="modal-overlay">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h3 style="font-size:20px;font-weight:700;">Admin Dashboard Help</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
+    </div>
+    <div style="line-height:1.6;">
+      <p style="margin-bottom:16px;"><strong>Overview:</strong> This dashboard allows you to monitor and manage university admissions applications.</p>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Key Features:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Applicants Table:</strong> View all applicants with their status, program, and documents</li>
+        <li><strong>Statistics:</strong> See real-time stats on total applications, completions, and daily activity</li>
+        <li><strong>Filtering:</strong> Filter applicants by status (All, Completed, In Progress)</li>
+        <li><strong>Sorting:</strong> Click column headers to sort by name, status, or date</li>
+        <li><strong>Applicant Details:</strong> Click on an applicant row to view full details and documents</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Actions:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Edit:</strong> Modify applicant information if needed</li>
+        <li><strong>View Documents:</strong> Click document links to view scanned images</li>
+        <li><strong>Refresh:</strong> Use the refresh button to reload latest data</li>
+      </ul>
+      
+      <p style="margin-top:20px;color:var(--text3);font-size:14px;">For technical support, contact the IT department.</p>
     </div>
   </div>
 </div>
@@ -728,6 +759,10 @@ function viewDocumentImage(docId, docLabel, hasImage) {
   `;
   
   modal.classList.add('open');
+}
+
+function showHelp() {
+  document.getElementById('modal-help').classList.add('open');
 }
 </script>
 </body>

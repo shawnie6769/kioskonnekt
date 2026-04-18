@@ -19,6 +19,9 @@
   <div class="orb orb-teal" style="width:400px;height:400px;top:-100px;left:-100px;"></div>
 
   <div style="background:var(--surface);border:1px solid var(--border2);border-radius:28px;padding:52px;width:min(500px,94vw);animation:fadeUp 0.5s ease both;position:relative;z-index:1;" class="login-box">
+    <div style="position:absolute;top:16px;right:16px;">
+      <button class="btn btn-ghost btn-sm" onclick="showHelp()">? Help</button>
+    </div>
     <div style="text-align:center;margin-bottom:36px;">
       <div class="logo" style="font-size:26px;margin-bottom:6px;"><span class="logo-k">Kios</span><span class="logo-accent">Konnekt</span></div>
       <div style="font-size:32px;font-weight:800;margin:20px 0 10px;">Administrative Access</div>
@@ -80,6 +83,48 @@ async function login() {
     btn.textContent = 'Sign In →';
   }
 }
+
+function showHelp() {
+  document.getElementById('modal-help').classList.add('open');
+}
 </script>
+
+<!-- Help Modal -->
+<div id="modal-help" class="modal-overlay">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h3 style="font-size:20px;font-weight:700;">Admin Login Help</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
+    </div>
+    <div style="line-height:1.6;">
+      <p style="margin-bottom:16px;"><strong>Administrative Access</strong> — Sign in to manage admissions applications.</p>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Login Credentials:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Username:</strong> admin</li>
+        <li><strong>Password:</strong> kioskonnekt2025</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">What You Can Do:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li>View all applicant submissions</li>
+        <li>Review uploaded documents</li>
+        <li>Monitor application statistics</li>
+        <li>Edit applicant information if needed</li>
+        <li>Track completion status</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Security Notes:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li>Keep login credentials secure</li>
+        <li>Log out when finished</li>
+        <li>Report any suspicious activity</li>
+      </ul>
+      
+      <p style="margin-top:20px;color:var(--text3);font-size:14px;">For technical support or password issues, contact the IT department.</p>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -49,7 +49,10 @@
       <div class="step-line done"></div>
       <div class="step active"><div class="step-num">4</div></div>
     </div>
-    <div class="badge badge-green" style="font-size:12px;">Step 4 of 4</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" onclick="showHelp()">? Help</button>
+      <div class="badge badge-green" style="font-size:12px;">Step 4 of 4</div>
+    </div>
   </header>
 
   <div class="kiosk-body" style="background:var(--bg2);padding-top:8px;">
@@ -205,6 +208,49 @@ function resetAndExit() {
   Session.clear();
   navigateTo('/');
 }
+
+function showHelp() {
+  document.getElementById('modal-help').classList.add('open');
+}
 </script>
+
+<!-- Help Modal -->
+<div id="modal-help" class="modal-overlay">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h3 style="font-size:20px;font-weight:700;">Application Summary Help</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
+    </div>
+    <div style="line-height:1.6;">
+      <p style="margin-bottom:16px;"><strong>Step 4: Application Summary</strong> — Review your complete application before final submission.</p>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">What You'll See:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Applicant Information:</strong> Your personal and academic details</li>
+        <li><strong>Document Status:</strong> Confirmation of uploaded documents</li>
+        <li><strong>Interview Responses:</strong> All your answers to the AI questions</li>
+        <li><strong>Completion Status:</strong> Overall application progress</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Final Steps:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li><strong>Review Carefully:</strong> Check all information for accuracy</li>
+        <li><strong>Edit if Needed:</strong> Use the edit buttons to make changes</li>
+        <li><strong>Submit Application:</strong> Click "Submit Application" when ready</li>
+        <li><strong>Confirmation:</strong> You'll receive a confirmation screen</li>
+      </ul>
+      
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Important Notes:</h4>
+      <ul style="margin-bottom:16px;padding-left:20px;">
+        <li>Once submitted, you cannot modify your application</li>
+        <li>Save any important information before submitting</li>
+        <li>Contact admissions if you need to make changes later</li>
+      </ul>
+      
+      <p style="margin-top:20px;color:var(--text3);font-size:14px;">Congratulations on completing the application process! Your submission will be reviewed by our admissions team.</p>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
