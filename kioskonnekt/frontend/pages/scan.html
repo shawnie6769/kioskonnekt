@@ -602,19 +602,38 @@ function getPortraitImageData(video, canvas) {
   const srcHeight = video.videoHeight || 1280;
   const ctx = canvas.getContext('2d');
 
-  if (srcWidth > srcHeight) {
-    canvas.width = srcHeight;
-    canvas.height = srcWidth;
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.drawImage(video, -srcWidth / 2, -srcHeight / 2, srcWidth, srcHeight);
-    ctx.restore();
-  } else {
-    canvas.width = srcWidth;
-    canvas.height = srcHeight;
-    ctx.drawImage(video, 0, 0, srcWidth, srcHeight);
+  const targetWidth = 1080;
+  const targetHeight = 1440;
+  const targetRatio = targetWidth / targetHeight;
+  const srcRatio = srcWidth / srcHeight;
+
+  let cropWidth = srcWidth;
+  let cropHeight = srcHeight;
+  let cropX = 0;
+  let cropY = 0;
+
+  if (srcRatio > targetRatio) {
+    cropWidth = srcHeight * targetRatio;
+    cropX = (srcWidth - cropWidth) / 2;
+  } else if (srcRatio < targetRatio) {
+    cropHeight = srcWidth / targetRatio;
+    cropY = (srcHeight - cropHeight) / 2;
   }
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  ctx.clearRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(
+    video,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    targetWidth,
+    targetHeight
+  );
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
@@ -713,7 +732,16 @@ async function proceedToInterview() {
   stopCamera();
   Session.set(
     SESSION.DOCUMENTS,
-    captured.flatMap(docShots => docShots.map(d => ({ label: d.label, type: d.type })))
+    captured.flatMap(docShots => docShots.map((d) => {
+      const dataUrl = d.imageData || d.image_data || '';
+      const base64 = dataUrl.startsWith('data:') ? (dataUrl.split(',')[1] || '') : dataUrl;
+      return {
+        label: d.label,
+        type: d.type,
+        imageData: dataUrl,
+        image_data: base64
+      };
+    }))
   );
   navigateTo('/interview');
 }
@@ -761,3 +789,5 @@ window.addEventListener('keydown', (event) => {
 </script>
 </body>
 </html>
+
+

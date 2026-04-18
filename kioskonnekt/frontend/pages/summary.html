@@ -164,6 +164,14 @@
 let summaryPreviewState = { docIdx: null, shotIdx: 0 };
 let summaryDocuments = [];
 
+function toImageSrc(imageValue) {
+  if (!imageValue) return null;
+  const raw = String(imageValue).trim();
+  if (!raw) return null;
+  if (raw.startsWith('data:image/')) return raw;
+  return `data:image/jpeg;base64,${raw}`;
+}
+
 function openSummaryPreview(docIdx, shotIdx) {
   const modal = document.getElementById('modal-doc-preview');
   if (!modal) return;
@@ -281,11 +289,14 @@ window.addEventListener('DOMContentLoaded', () => {
   summaryDocuments = [];
   const docMap = {};
   rawDocs.forEach(doc => {
+    const imageData = toImageSrc(doc.imageData || doc.image_data);
+    if (!imageData) return;
+
     if (!docMap[doc.type]) {
       docMap[doc.type] = { type: doc.type, label: doc.label, captures: [] };
       summaryDocuments.push(docMap[doc.type]);
     }
-    docMap[doc.type].captures.push({ imageData: doc.image_data || doc.imageData });
+    docMap[doc.type].captures.push({ imageData });
   });
 
   // Applicant info
