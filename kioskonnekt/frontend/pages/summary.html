@@ -401,8 +401,20 @@ async function submitInterview() {
   const listEl = document.getElementById('submitted-scanned-list');
   if (listEl) {
     if (scanned.length) {
+      // Deduplicate by document type/label so a document appears once even if multiple
+      // images were submitted for it.
+      const seen = new Set();
+      const unique = [];
+      scanned.forEach(s => {
+        const key = (s && (s.type || s.label)) || String(s);
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(s);
+        }
+      });
+
       listEl.innerHTML = '<div style="font-weight:700;margin-bottom:8px">Scanned documents (please match order):</div>' +
-        '<ol style="margin:0 0 0 18px;padding:0;color:var(--text);">' + scanned.map(s => `<li style="margin-bottom:6px">${s.label || s}</li>`).join('') + '</ol>';
+        '<ol style="margin:0 0 0 18px;padding:0;color:var(--text);">' + unique.map(s => `<li style="margin-bottom:6px">${(s && s.label) || s}</li>`).join('') + '</ol>';
     } else {
       // intentionally leave blank when there are no scanned documents
       listEl.innerHTML = '';
