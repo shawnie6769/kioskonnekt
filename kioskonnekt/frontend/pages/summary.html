@@ -34,6 +34,20 @@
   font-size: 13px; font-weight: 700; color: #93C5FD;
   flex-shrink: 0; font-family: var(--mono);
 }
+.doc-preview-card {
+  padding: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.doc-preview-thumbs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 </style>
 </head>
 <body>
@@ -82,7 +96,7 @@
       <!-- Documents -->
       <div class="card anim-fade-up anim-delay-3" style="margin-bottom:36px;">
         <div class="section-eyebrow" style="color:var(--amber);margin-bottom:16px;">Submitted Documents</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;" id="docs-list">
+        <div style="display:flex;flex-direction:column;gap:12px;" id="docs-list">
           <div style="color:var(--text3);font-size:14px;">No documents scanned.</div>
         </div>
       </div>
@@ -111,6 +125,27 @@
   </div>
 </div>
 
+<!-- Document Preview Modal -->
+<div id="modal-doc-preview" class="modal-overlay" onclick="closeSummaryPreviewOnBackdrop(event)">
+  <div class="modal-box" style="max-width:760px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;">
+      <h3 id="summary-preview-title" style="font-size:18px;font-weight:700;color:var(--text);">Document Preview</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeSummaryPreview()">✕ Close</button>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;justify-content:center;max-height:70vh;overflow:auto;">
+      <img id="summary-preview-img" alt="Submitted Document Preview" style="max-width:100%;height:auto;border-radius:8px;display:block;">
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div id="summary-preview-meta" style="font-size:13px;color:var(--text2);">Capture 1 of 1</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="btn-summary-prev" class="btn btn-ghost btn-sm" onclick="changeSummaryPreview(-1)">← Prev</button>
+        <button id="btn-summary-next" class="btn btn-ghost btn-sm" onclick="changeSummaryPreview(1)">Next →</button>
+        <button id="btn-summary-delete" class="btn btn-danger btn-sm" onclick="deleteSummaryCapture()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Success modal -->
 <div id="modal-success" class="modal-overlay">
   <div class="modal-box" style="text-align:center;">
@@ -126,12 +161,132 @@
 
 <script src="/js/app.js"></script>
 <script>
+let summaryPreviewState = { docIdx: null, shotIdx: 0 };
+let summaryDocuments = [];
+
+function openSummaryPreview(docIdx, shotIdx) {
+  const modal = document.getElementById('modal-doc-preview');
+  if (!modal) return;
+  summaryPreviewState.docIdx = docIdx;
+  summaryPreviewState.shotIdx = shotIdx;
+  updateSummaryPreviewModal();
+  modal.classList.add('open');
+}
+
+function closeSummaryPreview() {
+  const modal = document.getElementById('modal-doc-preview');
+  if (modal) modal.classList.remove('open');
+  summaryPreviewState.docIdx = null;
+  summaryPreviewState.shotIdx = 0;
+}
+
+function closeSummaryPreviewOnBackdrop(event) {
+  if (event.target?.id === 'modal-doc-preview') {
+    closeSummaryPreview();
+  }
+}
+
+function updateSummaryPreviewModal() {
+  if (summaryPreviewState.docIdx === null) return;
+  const doc = summaryDocuments[summaryPreviewState.docIdx];
+  if (!doc) {
+    closeSummaryPreview();
+    return;
+  }
+
+  summaryPreviewState.shotIdx = Math.max(0, Math.min(summaryPreviewState.shotIdx, doc.captures.length - 1));
+  const capture = doc.captures[summaryPreviewState.shotIdx];
+
+  const modalImg = document.getElementById('summary-preview-img');
+  const modalTitle = document.getElementById('summary-preview-title');
+  const modalMeta = document.getElementById('summary-preview-meta');
+  const btnPrev = document.getElementById('btn-summary-prev');
+  const btnNext = document.getElementById('btn-summary-next');
+
+  if (modalImg) modalImg.src = capture.imageData;
+  if (modalTitle) modalTitle.textContent = doc.label;
+  if (modalMeta) modalMeta.textContent = `Capture ${summaryPreviewState.shotIdx + 1} of ${doc.captures.length}`;
+  if (btnPrev) btnPrev.disabled = summaryPreviewState.shotIdx === 0;
+  if (btnNext) btnNext.disabled = summaryPreviewState.shotIdx === doc.captures.length - 1;
+}
+
+function changeSummaryPreview(delta) {
+  if (summaryPreviewState.docIdx === null) return;
+  summaryPreviewState.shotIdx += delta;
+  updateSummaryPreviewModal();
+}
+
+function deleteSummaryCapture() {
+  if (summaryPreviewState.docIdx === null) return;
+  const docIdx = summaryPreviewState.docIdx;
+  const doc = summaryDocuments[docIdx];
+  if (!doc?.captures?.length) return;
+
+  const capture = doc.captures[summaryPreviewState.shotIdx];
+  const confirmed = window.confirm(
+    `Delete ${doc.label} capture ${summaryPreviewState.shotIdx + 1}? This action cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  doc.captures.splice(summaryPreviewState.shotIdx, 1);
+  if (summaryPreviewState.shotIdx >= doc.captures.length) {
+    summaryPreviewState.shotIdx = Math.max(0, doc.captures.length - 1);
+  }
+
+  renderSummaryDocuments();
+
+  if (!doc.captures.length) {
+    closeSummaryPreview();
+    return;
+  }
+
+  updateSummaryPreviewModal();
+}
+
+function renderSummaryDocuments() {
+  const docList = document.getElementById('docs-list');
+  if (!summaryDocuments.length || !summaryDocuments.some(d => d.captures?.length)) {
+    docList.innerHTML = '<div style="color:var(--text3);font-size:14px;">No documents scanned.</div>';
+    return;
+  }
+
+  docList.innerHTML = summaryDocuments
+    .filter(d => d.captures?.length)
+    .map((doc, docIdx) => `
+      <div class="doc-preview-card">
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px;">${doc.label}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${doc.captures.length} capture(s)</div>
+          <div class="doc-preview-thumbs">
+            ${doc.captures.map((cap, capIdx) => `
+              <img src="${cap.imageData}" alt="${doc.label} ${capIdx + 1}" 
+                style="width:48px;height:64px;object-fit:cover;border-radius:6px;border:2px solid var(--green);cursor:pointer;flex-shrink:0;"
+                title="Preview capture ${capIdx + 1}"
+                onclick="openSummaryPreview(${docIdx}, ${capIdx})">
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `).join('');
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const applicant = Session.get(SESSION.APPLICANT);
   const responses = Session.get(SESSION.RESPONSES) || [];
-  const docs = Session.get(SESSION.DOCUMENTS) || [];
+  const rawDocs = Session.get(SESSION.DOCUMENTS) || [];
 
   if (!applicant) { navigateTo('/'); return; }
+
+  // Parse documents into grouped structure for preview
+  summaryDocuments = [];
+  const docMap = {};
+  rawDocs.forEach(doc => {
+    if (!docMap[doc.type]) {
+      docMap[doc.type] = { type: doc.type, label: doc.label, captures: [] };
+      summaryDocuments.push(docMap[doc.type]);
+    }
+    docMap[doc.type].captures.push({ imageData: doc.image_data || doc.imageData });
+  });
 
   // Applicant info
   const fields = [
@@ -174,16 +329,12 @@ window.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
-  // Documents
-  const docList = document.getElementById('docs-list');
-  if (docs.length > 0) {
-    docList.innerHTML = docs.map(d => `
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--surface2);border:1px solid rgba(16,185,129,0.25);border-radius:12px;">
-        <span style="color:var(--green);font-size:18px;">✓</span>
-        <span style="font-size:14px;font-weight:500;">${d.label}</span>
-      </div>
-    `).join('');
-  }
+  // Documents with preview/management
+  renderSummaryDocuments();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeSummaryPreview();
 });
 
 async function submitInterview() {
