@@ -34,6 +34,22 @@
   font-size: 13px; font-weight: 700; color: #93C5FD;
   flex-shrink: 0; font-family: var(--mono);
 }
+
+/* Submitted screen reminder styles */
+.submitted-reminder {
+  font-size: 15px;
+  color: var(--text3);
+  line-height: 1.45;
+}
+
+/* Larger for tablet and up */
+@media (min-width: 768px) {
+  .submitted-reminder { font-size: 18px; }
+  .submitted-sequence { font-size: 15px; }
+}
+
+/* Emphasize important note */
+.submitted-reminder .important { font-weight:700; color:var(--accent); }
 </style>
 </head>
 <body>
@@ -82,14 +98,11 @@
       <!-- Documents -->
       <div class="card anim-fade-up anim-delay-3" style="margin-bottom:36px;">
         <div class="section-eyebrow" style="color:var(--amber);margin-bottom:16px;">Submitted Documents</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;" id="docs-list">
-          <div style="color:var(--text3);font-size:14px;">No documents scanned.</div>
-        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;" id="docs-list"></div>
       </div>
 
       <!-- Submit -->
       <div style="display:flex;gap:16px;justify-content:center;padding-bottom:40px;" class="anim-fade-up anim-delay-4">
-        <button class="btn btn-ghost btn-md" onclick="navigateTo('/interview')">← Review Answers</button>
         <button class="btn btn-primary btn-lg" id="submit-btn" onclick="submitInterview()">
           Submit Application ✓
         </button>
@@ -103,8 +116,35 @@
         <p style="font-size:18px;color:var(--text2);">Your application has been submitted successfully.</p>
       </div>
       <div class="card card-accent-blue" style="padding:36px; text-align:center;">
-        <p style="font-size:18px;color:var(--text);margin-bottom:24px;">Please drop your physical documents into the dropbox at the kiosk station now.</p>
-        <p style="font-size:14px;color:var(--text3);margin-bottom:28px;">A staff member will collect them from the physical document dropbox.</p>
+        <p style="font-size:18px;color:var(--text);margin-bottom:20px;">Please drop your physical documents into the dropbox at the kiosk station now.</p>
+        <div id="submitted-reminder" class="submitted-reminder" style="margin-bottom:12px;">
+          <div class="important">Important — sequence & verification required</div>
+          <div style="margin-top:8px;">Before depositing your physical documents, please verify ALL of the following:</div>
+          <ol style="text-align:left;margin:8px 0 0 18px;">
+            <li>The documents are arranged in the correct order as shown in the sequence list below.</li>
+            <li>The physical items exactly match the documents you scanned earlier (titles, copies, and number of pages).</li>
+            <li>IDs and photos are placed on top of the packet as the first item.</li>
+            <li>Enclose smaller items (photos, ID cards) in an envelope to avoid loss.</li>
+            <li>If you skipped scanning some items earlier, inform the staff before leaving.</li>
+          </ol>
+        </div>
+
+        <div id="submitted-scanned-list" style="text-align:left;margin:0 auto 12px;max-width:640px;color:var(--text);"></div>
+
+        <div id="submitted-sequence" class="submitted-sequence" style="text-align:left;max-width:640px;margin:10px auto 18px;color:var(--text);">
+          <div style="font-weight:700;margin-bottom:8px">Required sequence (place in this order):</div>
+          <ol style="margin:0 0 0 18px;padding:0;">
+            <li>Fully Accomplished PLV CAT 2026 Application Form</li>
+            <li>Certified True Copy of Grade 11 (Form 138) — 1st &amp; 2nd Semesters</li>
+            <li>Certified True Copy of Grade 12 (Form 138) — 1st Semester</li>
+            <li>Certified True Copy of Grade 12 School ID (Front and Back)</li>
+            <li>Clear Photocopy of NSO or PSA Birth Certificate (whole page)</li>
+            <li>Applicant's Voter's Certification issued by COMELEC (not earlier than 2022)</li>
+            <li>Parent's Voter's Certification issued by COMELEC (if required)</li>
+            <li>Two (2) Identical Passport Size ID Pictures (white background) — affixed name tag</li>
+          </ol>
+        </div>
+
         <button class="btn btn-primary btn-md btn-full" onclick="resetAndExit()">← New Applicant</button>
       </div>
     </div>
@@ -200,7 +240,27 @@ async function submitInterview() {
   }
 
   document.querySelector('.kiosk-header')?.classList.add('hidden');
+  // hide summary and show submitted screen
   document.getElementById('summary-content').style.display = 'none';
+
+  // Reminder: ensure physical documents are arranged and match scanned list
+  const scanned = Session.get(SESSION.DOCUMENTS) || [];
+  const reminderEl = document.getElementById('submitted-reminder');
+  if (reminderEl) {
+    reminderEl.innerHTML = 'Important: Before depositing your physical documents, please ensure they are arranged in the proper sequence and that the list matches the documents you scanned before starting the interview.';
+  }
+
+  const listEl = document.getElementById('submitted-scanned-list');
+  if (listEl) {
+    if (scanned.length) {
+      listEl.innerHTML = '<div style="font-weight:700;margin-bottom:8px">Scanned documents (please match order):</div>' +
+        '<ol style="margin:0 0 0 18px;padding:0;color:var(--text);">' + scanned.map(s => `<li style="margin-bottom:6px">${s.label || s}</li>`).join('') + '</ol>';
+    } else {
+      // intentionally leave blank when there are no scanned documents
+      listEl.innerHTML = '';
+    }
+  }
+
   document.getElementById('submitted-screen').style.display = 'block';
 }
 
