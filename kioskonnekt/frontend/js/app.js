@@ -80,6 +80,46 @@ function startClock(elementId) {
   setInterval(update, 1000);
 }
 
+// ── Theme Management ──────────────────────────────────────────
+const ThemeManager = {
+  STORAGE_KEY: 'kk_theme',
+  DEFAULT_THEME: 'dark',
+
+  init() {
+    const saved = localStorage.getItem(this.STORAGE_KEY) || this.DEFAULT_THEME;
+    this.setTheme(saved);
+  },
+
+  setTheme(theme) {
+    const validTheme = ['light', 'dark'].includes(theme) ? theme : this.DEFAULT_THEME;
+    document.documentElement.setAttribute('data-theme', validTheme);
+    localStorage.setItem(this.STORAGE_KEY, validTheme);
+    this.updateToggleButton(validTheme);
+  },
+
+  toggle() {
+    const current = document.documentElement.getAttribute('data-theme') || this.DEFAULT_THEME;
+    const next = current === 'dark' ? 'light' : 'dark';
+    this.setTheme(next);
+  },
+
+  updateToggleButton(theme) {
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+      btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+  }
+};
+
+function toggleTheme() {
+  ThemeManager.toggle();
+}
+
+// Initialize theme on page load
+document.addEventListener('DOMContentLoaded', () => {
+  ThemeManager.init();
+});
+
 // ── TTS ───────────────────────────────────────────────────────
 // Only expose English and Filipino (Tagalog)
 const VOICE_LANGUAGE_OPTIONS = [
