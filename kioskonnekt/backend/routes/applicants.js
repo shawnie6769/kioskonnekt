@@ -2,7 +2,7 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
-const { dbInsert, dbSelect, dbSelectOne, dbUpdate } = require('../db/supabase');
+const { dbInsert, dbSelect, dbSelectOne, dbUpdate, dbSearchSchools } = require('../db/supabase');
 
 const DROPBOX_TOKEN = process.env.DROPBOX_ACCESS_TOKEN || '';
 const DROPBOX_UPLOAD_PATH = process.env.DROPBOX_UPLOAD_PATH || '/KiosKonnekt';
@@ -162,21 +162,7 @@ router.get('/schools/search', async (req, res) => {
   if (!q || q.length < 1) return res.json({ success: true, data: [] });
 
   try {
-    if (require('../db/supabase').isInMemory()) {
-      // fallback for in-memory mode
-      return res.json({ success: true, data: [] });
-    }
-
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = require('../db/supabase').getClient();
-
-    const { data, error } = await supabase
-      .from('schools')
-      .select('id, name, city, region, type')
-      .ilike('name', `%${q}%`)
-      .order('name', { ascending: true })
-      .limit(8);
-
+    const { data, error } = await dbSearchSchools(q, 8);
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (err) {
