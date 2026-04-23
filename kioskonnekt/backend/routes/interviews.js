@@ -4,7 +4,7 @@ const router = express.Router();
 const { dbInsert, dbSelect, dbSelectOne, dbUpdate } = require('../db/supabase');
 const { callN8nWorkflow, isN8nEnabled } = require('../services/n8n');
 
-const FALLBACK_QUESTIONS = [
+const DEFAULT_FALLBACK_QUESTIONS = [
   {
     label: 'Tell us about yourself',
     text: "Hi, I'm KiosKonnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique."
@@ -51,8 +51,24 @@ const TRANSLATIONS_TL = [
     }
 ];
 
-function getFallbackQuestion(index) {
-  return FALLBACK_QUESTIONS[index] || {
+async function getActiveFallbackQuestions() {
+  try {
+    const { data, error } = await dbSelect('fallback_questions', { is_active: true });
+    if (error) return DEFAULT_FALLBACK_QUESTIONS;
+
+    const normalized = (data || [])
+      .sort((a, b) => Number(a.question_index || 0) - Number(b.question_index || 0))
+      .map((q) => ({ label: q.label, text: q.text }));
+
+    return normalized.length > 0 ? normalized : DEFAULT_FALLBACK_QUESTIONS;
+  } catch (err) {
+    return DEFAULT_FALLBACK_QUESTIONS;
+  }
+}
+
+async function getFallbackQuestion(index) {
+  const active = await getActiveFallbackQuestions();
+  return active[index] || {
     label: `Question ${index + 1}`,
     text: 'Please share your thoughts on this part of your interview.'
   };
@@ -81,9 +97,15 @@ router.post('/', async (req, res) => {
   try {
     const { applicant_id, total_questions } = req.body;
     if (!applicant_id) return res.status(400).json({ success: false, error: 'applicant_id required' });
+
+    const activeFallback = await getActiveFallbackQuestions();
+    const effectiveTotalQuestions = Number.isInteger(total_questions)
+      ? total_questions
+      : Math.max(1, activeFallback.length || 5);
+
     const { data, error } = await dbInsert('interviews', {
       applicant_id,
-      total_questions: total_questions || 5,
+      total_questions: effectiveTotalQuestions,
       questions_answered: 0,
       status: 'in_progress',
       ai_model: isN8nEnabled() ? 'n8n' : 'rule-based'
@@ -111,7 +133,7 @@ router.post('/:id/next-question', async (req, res) => {
       return res.json({ success: true, data: { done: true, question_index: questionIndex } });
     }
 
-      const fallback = getFallbackQuestion(questionIndex);
+      const fallback = await getFallbackQuestion(questionIndex);
       const n8nResult = await callN8nWorkflow('next_question', {
           interview_id: req.params.id,
           question_index: questionIndex,
@@ -256,7 +278,7 @@ router.post('/:id/responses', async (req, res) => {
     // ✅ NEW: Get next question immediately while context is fresh
     let nextQuestion = null;
     if (nextQuestionIndex < totalQuestions) {
-      const fallback = getFallbackQuestion(nextQuestionIndex);
+      const fallback = await getFallbackQuestion(nextQuestionIndex);
       const n8nResult = await callN8nWorkflow('next_question', {
         interview_id: req.params.id,
         question_index: nextQuestionIndex,

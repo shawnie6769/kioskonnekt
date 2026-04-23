@@ -89,6 +89,55 @@ CREATE TABLE IF NOT EXISTS admin_users (
 );
 
 -- ============================================================
+-- FALLBACK QUESTIONS TABLE
+-- Admin-managed fallback interview questions
+-- ============================================================
+CREATE TABLE IF NOT EXISTS fallback_questions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  question_index INTEGER NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  text TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT uq_fallback_questions_index UNIQUE (question_index)
+);
+
+-- ============================================================
+-- SYSTEM FAILURES TABLE
+-- Error/failure tracking for maintenance history
+-- ============================================================
+CREATE TABLE IF NOT EXISTS system_failures (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  component VARCHAR(100) NOT NULL,
+  category VARCHAR(100) DEFAULT 'runtime',
+  severity VARCHAR(20) DEFAULT 'error',
+  message TEXT NOT NULL,
+  metadata JSONB,
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- APPLICANT HELP CONTENT TABLE
+-- Admin-managed visual guides and instructions per kiosk screen
+-- ============================================================
+CREATE TABLE IF NOT EXISTS applicant_help_content (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  screen_key VARCHAR(80) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  short_intro TEXT,
+  steps JSONB DEFAULT '[]'::jsonb,
+  visual_guide TEXT,
+  tips JSONB DEFAULT '[]'::jsonb,
+  display_order INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- INDEXES for performance
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_applicants_status ON applicants(status);
@@ -97,6 +146,10 @@ CREATE INDEX IF NOT EXISTS idx_interviews_applicant ON interviews(applicant_id);
 CREATE INDEX IF NOT EXISTS idx_responses_interview ON responses(interview_id);
 CREATE INDEX IF NOT EXISTS idx_responses_applicant ON responses(applicant_id);
 CREATE INDEX IF NOT EXISTS idx_documents_applicant ON documents(applicant_id);
+CREATE INDEX IF NOT EXISTS idx_fallback_questions_order ON fallback_questions(question_index ASC);
+CREATE INDEX IF NOT EXISTS idx_system_failures_created ON system_failures(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_failures_component ON system_failures(component);
+CREATE INDEX IF NOT EXISTS idx_help_content_screen ON applicant_help_content(screen_key, is_active, display_order);
 
 -- ============================================================
 -- SEED: Default admin user (password: kioskonnekt2025)
@@ -105,6 +158,75 @@ CREATE INDEX IF NOT EXISTS idx_documents_applicant ON documents(applicant_id);
 INSERT INTO admin_users (username, password_hash, full_name, role)
 VALUES ('admin', 'kioskonnekt2025', 'System Administrator', 'superadmin')
 ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================
+-- SEED: Default fallback interview questions
+-- ============================================================
+INSERT INTO fallback_questions (question_index, label, text)
+VALUES
+  (0, 'Tell us about yourself', 'Hi, I''m KiosKonnekt, and I''ll guide you through your interview today. Let''s begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique.'),
+  (1, 'Why this program?', 'Thank you. I''d love to hear more about your academic direction. What made you choose this program at our university, and what about this field feels right for you?'),
+  (2, 'Your strengths as a student', 'That helps a lot. Every student brings different strengths into the classroom. What qualities, habits, or skills help you do your best as a learner?'),
+  (3, 'Handling challenges', 'Let''s talk about resilience for a moment. When school becomes difficult or something does not go as planned, how do you usually respond and move forward?'),
+  (4, 'Goals after graduation', 'You''re doing well, and this is the last question. Looking ahead, what kind of future are you working toward after graduation, and where would you like to be in the next five to ten years?')
+ON CONFLICT (question_index) DO NOTHING;
+
+-- ============================================================
+-- SEED: Applicant-facing help content (REQ-4)
+-- ============================================================
+INSERT INTO applicant_help_content (screen_key, title, short_intro, steps, visual_guide, tips, display_order, is_active)
+VALUES
+  (
+    'welcome',
+    'Welcome to KiosKonnekt',
+    'This kiosk will guide you step by step from profile registration to final submission.',
+    '["Tap Begin Interview to start.","Fill in your profile details carefully.","Scan your required documents in order.","Answer the interview questions honestly.","Review then submit your application."]'::jsonb,
+    'Follow the top progress steps: Profile -> Documents -> Interview -> Summary.',
+    '["You can use the Help button on every screen.","Take your time; there is no need to rush."]'::jsonb,
+    0,
+    TRUE
+  ),
+  (
+    'profile',
+    'Profile Information Help',
+    'Enter your basic details exactly as they appear on your records.',
+    '["Type your full legal name.","Choose your intended program.","Provide your senior high school details.","Add a working contact number and email.","Press Continue to move to documents."]'::jsonb,
+    'Check for red error text before continuing. Fields marked required must be filled.',
+    '["Double-check spelling of your name and email.","Ask staff for help if you are unsure about school details."]'::jsonb,
+    0,
+    TRUE
+  ),
+  (
+    'scan',
+    'Document Scanning Help',
+    'Scan your documents clearly so admissions can review them quickly.',
+    '["Select a document from the list.","Place document flat in the camera frame.","Keep lighting bright and avoid glare.","Press Capture and verify the preview.","Repeat until all required documents are marked done."]'::jsonb,
+    'Use the checklist order from 1 to 8. Green check status means document captured.',
+    '["Hold documents steady for a clearer image.","Retake blurred images before continuing."]'::jsonb,
+    0,
+    TRUE
+  ),
+  (
+    'interview',
+    'AI Interview Help',
+    'Answer each question clearly using voice or typing.',
+    '["Read or listen to the question.","Answer in complete, honest sentences.","Use voice recording or type your answer.","Submit to move to the next question.","Finish all questions to proceed."]'::jsonb,
+    'The assistant orb indicates speaking/listening states. Wait for prompts before responding.',
+    '["Speak at a normal pace.","If voice does not work, use typed response."]'::jsonb,
+    0,
+    TRUE
+  ),
+  (
+    'summary',
+    'Application Summary Help',
+    'Review all information before final submission.',
+    '["Check applicant profile details.","Confirm your documents are listed.","Review interview responses.","Use edit actions if needed.","Submit once all details are correct."]'::jsonb,
+    'After submission, edits are restricted. Verify details carefully before final submit.',
+    '["Take a moment to review every section.","Contact admin immediately if you submitted incorrect data."]'::jsonb,
+    0,
+    TRUE
+  )
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- SEED: Sample applicants for demo

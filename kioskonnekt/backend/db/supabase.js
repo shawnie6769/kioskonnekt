@@ -16,12 +16,25 @@ const memStore = {
   responses: [],
   documents: [],
   schools: [],
+  fallback_questions: [],
+  applicant_help_content: [],
+  system_failures: [],
   admin_users: [
     { id: '1', username: 'admin', password_hash: 'kioskonnekt2025', full_name: 'System Administrator', role: 'superadmin' }
   ]
 };
 
-const SUPPORTED_TABLES = new Set(['applicants', 'admin_users', 'interviews', 'responses', 'documents', 'schools']);
+const SUPPORTED_TABLES = new Set([
+  'applicants',
+  'admin_users',
+  'interviews',
+  'responses',
+  'documents',
+  'schools',
+  'fallback_questions',
+  'applicant_help_content',
+  'system_failures'
+]);
 
 function isValidIdentifier(identifier) {
   return /^[a-z_][a-z0-9_]*$/i.test(identifier);
@@ -111,8 +124,13 @@ const TABLE_ORDER_COLS = {
   interviews:  'started_at',
   responses:   'answered_at',
   documents:   'captured_at',
-  schools:     'name'
+  schools:     'name',
+  fallback_questions: 'question_index',
+  applicant_help_content: 'display_order',
+  system_failures: 'created_at'
 };
+
+const ASC_ORDER_COLS = new Set(['name', 'question_index', 'display_order']);
 
 async function dbInsert(table, data) {
   const safeTable = sanitizeTable(table);
@@ -171,7 +189,7 @@ async function dbInsert(table, data) {
 async function dbSelect(table, filters = {}) {
   const safeTable = sanitizeTable(table);
   const orderCol = TABLE_ORDER_COLS[safeTable] || 'created_at';
-  const orderDir = orderCol === 'name' ? 'ASC' : 'DESC';
+  const orderDir = ASC_ORDER_COLS.has(orderCol) ? 'ASC' : 'DESC';
 
   if (localEnabled && localPool) {
     try {
@@ -437,6 +455,147 @@ async function dbSearchSchools(query, limit = 8) {
 
 function seedDemoData() {
   if (!useInMemory || memStore.applicants.length > 0) return;
+
+  if (memStore.fallback_questions.length === 0) {
+    memStore.fallback_questions = [
+      {
+        id: uuidv4(),
+        question_index: 0,
+        label: 'Tell us about yourself',
+        text: "Hi, I'm KiosKonnekt, and I'll guide you through your interview today. Let's begin with something simple. Tell me a little about yourself, including your background, your interests, and what makes you unique.",
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        question_index: 1,
+        label: 'Why this program?',
+        text: "Thank you. I'd love to hear more about your academic direction. What made you choose this program at our university, and what about this field feels right for you?",
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        question_index: 2,
+        label: 'Your strengths as a student',
+        text: 'That helps a lot. Every student brings different strengths into the classroom. What qualities, habits, or skills help you do your best as a learner?',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        question_index: 3,
+        label: 'Handling challenges',
+        text: "Let's talk about resilience for a moment. When school becomes difficult or something does not go as planned, how do you usually respond and move forward?",
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        question_index: 4,
+        label: 'Goals after graduation',
+        text: "You're doing well, and this is the last question. Looking ahead, what kind of future are you working toward after graduation, and where would you like to be in the next five to ten years?",
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ];
+  }
+
+  if (memStore.applicant_help_content.length === 0) {
+    memStore.applicant_help_content = [
+      {
+        id: uuidv4(),
+        screen_key: 'welcome',
+        title: 'Welcome to KiosKonnekt',
+        short_intro: 'This kiosk will guide you from profile registration to final submission.',
+        steps: [
+          'Tap Begin Interview to start.',
+          'Complete Profile, Documents, Interview, then Summary.',
+          'Use the Help button whenever you need guidance.'
+        ],
+        visual_guide: 'Follow the progress bar at the top of each page.',
+        tips: ['Take your time.', 'Ask staff for help if needed.'],
+        display_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        screen_key: 'profile',
+        title: 'Profile Information Help',
+        short_intro: 'Enter details exactly as written on official records.',
+        steps: [
+          'Type your full legal name.',
+          'Select your program and school details.',
+          'Provide active contact information.'
+        ],
+        visual_guide: 'Required fields must be completed before continuing.',
+        tips: ['Double-check spelling.', 'Use an active mobile number and email.'],
+        display_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        screen_key: 'scan',
+        title: 'Document Scanning Help',
+        short_intro: 'Scan clear images for each required document.',
+        steps: [
+          'Select a document from the list.',
+          'Place it clearly inside the camera frame.',
+          'Press Capture and verify the result.'
+        ],
+        visual_guide: 'Capture documents in checklist order and avoid glare.',
+        tips: ['Keep documents flat.', 'Retake blurred captures.'],
+        display_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        screen_key: 'interview',
+        title: 'AI Interview Help',
+        short_intro: 'Answer each interview prompt clearly and honestly.',
+        steps: [
+          'Listen or read the question.',
+          'Respond using voice or typing.',
+          'Submit to proceed to the next question.'
+        ],
+        visual_guide: 'Assistant orb state indicates speaking/listening mode.',
+        tips: ['Speak at normal pace.', 'Type if microphone is unavailable.'],
+        display_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: uuidv4(),
+        screen_key: 'summary',
+        title: 'Application Summary Help',
+        short_intro: 'Review everything before final submission.',
+        steps: [
+          'Check profile information.',
+          'Confirm scanned documents.',
+          'Review interview responses.',
+          'Submit when all details are correct.'
+        ],
+        visual_guide: 'Submission is final, so verify details carefully.',
+        tips: ['Use edit controls before submitting.', 'Ask admin help for corrections after submission.'],
+        display_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ];
+  }
 
   const demos = [
     { id: uuidv4(), full_name: 'Maria Clara Santos', email: 'maria@email.com', program: 'BS Computer Science', senior_high_school: 'Pasig City National HS', strand: 'STEM', status: 'completed', created_at: new Date(Date.now() - 7200000).toISOString() },

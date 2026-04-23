@@ -729,39 +729,16 @@ function showHelp() {
 <div id="modal-help" class="modal-overlay">
   <div class="modal-box" style="max-width:600px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-      <h3 style="font-size:20px;font-weight:700;">AI Interview Help</h3>
+      <h3 style="font-size:20px;font-weight:700;" id="help-content-title">Help</h3>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
     </div>
-    <div style="line-height:1.6;">
-      <p style="margin-bottom:16px;"><strong>Step 3: AI Interview</strong> — Answer questions from our AI assistant to complete your application.</p>
-      
-      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">How It Works:</h4>
-      <ul style="margin-bottom:16px;padding-left:20px;">
-        <li>The AI will ask you a series of questions about your background and goals</li>
-        <li>You can respond by speaking (voice) or typing your answers</li>
-        <li>Switch between English and Filipino using the language toggle</li>
-        <li>Your responses are recorded and analyzed for admissions review</li>
-      </ul>
-      
-      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Voice Controls:</h4>
-      <ul style="margin-bottom:16px;padding-left:20px;">
-        <li><strong>Start Recording:</strong> Click the microphone button to begin speaking</li>
-        <li><strong>Stop Recording:</strong> Click again to stop and process your response</li>
-        <li><strong>Language Toggle:</strong> Switch between English and Filipino</li>
-      </ul>
-      
-      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Tips:</h4>
-      <ul style="margin-bottom:16px;padding-left:20px;">
-        <li>Speak clearly and at a normal pace</li>
-        <li>Take your time to think before answering</li>
-        <li>Be honest and authentic in your responses</li>
-        <li>You can type if voice recognition doesn't work well</li>
-      </ul>
-      
-      <p style="margin-top:20px;color:var(--text3);font-size:14px;">The interview typically takes 5-10 minutes. Your responses help us understand you better.</p>
-    </div>
+    <div style="line-height:1.6;" id="help-content-body">Loading help content...</div>
   </div>
 </div>
+
+<script>
+hydrateApplicantHelpModal('interview');
+</script>
 
 </body>
 </html>

@@ -373,34 +373,16 @@ function showHelp() {
 <div id="modal-help" class="modal-overlay">
   <div class="modal-box" style="max-width:600px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-      <h3 style="font-size:20px;font-weight:700;">Profile Information Help</h3>
+      <h3 style="font-size:20px;font-weight:700;" id="help-content-title">Help</h3>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-help')">✕ Close</button>
     </div>
-    <div style="line-height:1.6;">
-      <p style="margin-bottom:16px;"><strong>Step 1: Applicant Profile</strong> — Enter your personal and academic information.</p>
-      
-      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Required Information:</h4>
-      <ul style="margin-bottom:16px;padding-left:20px;">
-        <li><strong>Full Name:</strong> Your complete legal name as it appears on documents</li>
-        <li><strong>Program:</strong> Select your desired degree program</li>
-        <li><strong>Senior High School:</strong> Name of your current or most recent school</li>
-        <li><strong>School Address:</strong> Complete address of your school</li>
-        <li><strong>Contact Number:</strong> Active mobile number for communication</li>
-        <li><strong>Email:</strong> Valid email address for notifications</li>
-      </ul>
-      
-      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Tips:</h4>
-      <ul style="margin-bottom:16px;padding-left:20px;">
-        <li>Double-check all information for accuracy</li>
-        <li>Use your official school name and address</li>
-        <li>Ensure your contact details are current</li>
-        <li>All fields marked with * are required</li>
-      </ul>
-      
-      <p style="margin-top:20px;color:var(--text3);font-size:14px;">This information will be used throughout your admissions process and stored securely.</p>
-    </div>
+    <div style="line-height:1.6;" id="help-content-body">Loading help content...</div>
   </div>
 </div>
+
+<script>
+hydrateApplicantHelpModal('profile');
+</script>
 
 </body>
 </html>

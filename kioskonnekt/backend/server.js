@@ -6,6 +6,7 @@ const path = require('path');
 const helmet = require('helmet');
 
 const { initSupabase, seedDemoData } = require('./db/supabase');
+const { startMonitor, recordSystemFailure } = require('./services/monitor');
 const applicantsRouter = require('./routes/applicants');
 const interviewsRouter = require('./routes/interviews');
 const documentsRouter = require('./routes/documents');
@@ -58,12 +59,23 @@ app.use((req, res) => {
 // Error handler
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
+  recordSystemFailure({
+    component: 'backend:api',
+    category: 'request_error',
+    severity: 'error',
+    message: err.message || 'Unhandled server error',
+    metadata: {
+      path: req.originalUrl,
+      method: req.method
+    }
+  });
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
 // ── Start ────────────────────────────────────────────────────
 initSupabase();
 seedDemoData();
+startMonitor();
 
 const server = app.listen(PORT, () => {
   console.log(`\n╔═══════════════════════════════════════╗`);

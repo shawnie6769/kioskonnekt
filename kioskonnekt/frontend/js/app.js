@@ -39,6 +39,128 @@ const API = {
   }
 };
 
+const KIOSK_HELP_DEFAULTS = {
+  welcome: {
+    title: 'Welcome to KiosKonnekt',
+    short_intro: 'This kiosk will guide you through each application step.',
+    steps: [
+      'Tap Begin Interview to start.',
+      'Complete Profile, Documents, Interview, then Summary.',
+      'Use the Help button on any screen if you need guidance.'
+    ],
+    visual_guide: 'Follow the top progress bar to know your current step.',
+    tips: ['Take your time.', 'Ask staff for help if needed.']
+  },
+  profile: {
+    title: 'Profile Information Help',
+    short_intro: 'Enter your details exactly as shown on your records.',
+    steps: [
+      'Enter your full legal name.',
+      'Select your program and school details.',
+      'Provide active contact information and continue.'
+    ],
+    visual_guide: 'Required fields must be completed before moving on.',
+    tips: ['Double-check spelling.', 'Use a valid mobile number and email.']
+  },
+  scan: {
+    title: 'Document Scanning Help',
+    short_intro: 'Capture clear images of each required document.',
+    steps: [
+      'Select a document from the checklist.',
+      'Place it clearly inside the camera frame.',
+      'Press Capture and verify the preview.'
+    ],
+    visual_guide: 'Use checklist order and avoid shadows or glare.',
+    tips: ['Keep the document flat.', 'Retake blurred images.']
+  },
+  interview: {
+    title: 'AI Interview Help',
+    short_intro: 'Answer each question clearly using voice or typing.',
+    steps: [
+      'Listen to or read the question.',
+      'Respond honestly in complete thoughts.',
+      'Submit your response to continue.'
+    ],
+    visual_guide: 'Wait for the assistant prompt before answering.',
+    tips: ['Speak at a normal pace.', 'Use text input if voice is unavailable.']
+  },
+  summary: {
+    title: 'Application Summary Help',
+    short_intro: 'Review all details before final submission.',
+    steps: [
+      'Check profile information.',
+      'Confirm scanned documents and interview responses.',
+      'Submit only when everything is correct.'
+    ],
+    visual_guide: 'Submission is final, so verify details carefully.',
+    tips: ['Use edit actions before submitting.', 'Contact admin if corrections are needed later.']
+  }
+};
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function getApplicantHelpContent(screenKey) {
+  const key = String(screenKey || '').toLowerCase();
+  const fallback = KIOSK_HELP_DEFAULTS[key] || KIOSK_HELP_DEFAULTS.welcome;
+  try {
+    const res = await API.get(`/admin/help-content?screen_key=${encodeURIComponent(key)}&active=1`);
+    if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+      return {
+        ...fallback,
+        ...res.data[0],
+        steps: Array.isArray(res.data[0].steps) ? res.data[0].steps : fallback.steps,
+        tips: Array.isArray(res.data[0].tips) ? res.data[0].tips : fallback.tips
+      };
+    }
+  } catch (e) {}
+  return fallback;
+}
+
+function buildApplicantHelpHTML(content) {
+  const steps = Array.isArray(content?.steps) ? content.steps : [];
+  const tips = Array.isArray(content?.tips) ? content.tips : [];
+  const intro = content?.short_intro ? `<p style="margin-bottom:16px;">${escapeHtml(content.short_intro)}</p>` : '';
+  const visualGuide = content?.visual_guide
+    ? `<div style="margin-top:16px;padding:12px 14px;background:rgba(14,165,233,0.10);border:1px solid rgba(14,165,233,0.30);border-radius:12px;font-size:13px;color:var(--text2);"><strong>Visual Guide:</strong> ${escapeHtml(content.visual_guide)}</div>`
+    : '';
+  const stepsHtml = steps.length
+    ? `
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Steps:</h4>
+      <ol style="margin-bottom:16px;padding-left:20px;">
+        ${steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}
+      </ol>
+    `
+    : '';
+  const tipsHtml = tips.length
+    ? `
+      <h4 style="font-size:16px;font-weight:600;margin-bottom:8px;margin-top:20px;">Tips:</h4>
+      <ul style="margin-bottom:8px;padding-left:20px;">
+        ${tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join('')}
+      </ul>
+    `
+    : '';
+
+  return `${intro}${stepsHtml}${visualGuide}${tipsHtml}`;
+}
+
+async function hydrateApplicantHelpModal(screenKey, titleElementId = 'help-content-title', bodyElementId = 'help-content-body') {
+  const titleEl = document.getElementById(titleElementId);
+  const bodyEl = document.getElementById(bodyElementId);
+  if (!titleEl || !bodyEl) return;
+
+  bodyEl.innerHTML = '<div style="color:var(--text3);">Loading help content...</div>';
+  const content = await getApplicantHelpContent(screenKey);
+  titleEl.textContent = content?.title || 'Help';
+  bodyEl.innerHTML = buildApplicantHelpHTML(content);
+}
+
 // ── Session helpers ───────────────────────────────────────────
 const Session = {
   set(key, value) { sessionStorage.setItem(key, JSON.stringify(value)); },
@@ -484,3 +606,135 @@ function translateAllQuestions(langCode) {
     }
   } catch (e) { console.error('translateAllQuestions error', e); }
 }
+
+// ── Kiosk monitoring + client error reporting ─────────────────────────────────
+const KioskMonitor = {
+  timer: null,
+  kioskId: null,
+
+  getKioskId() {
+    if (this.kioskId) return this.kioskId;
+    const existing = localStorage.getItem('kk_kiosk_id');
+    if (existing) {
+      this.kioskId = existing;
+      return existing;
+    }
+    const generated = `kiosk-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem('kk_kiosk_id', generated);
+    this.kioskId = generated;
+    return generated;
+  },
+
+  async pingApi() {
+    try {
+      const response = await fetch('/api/health', { method: 'GET' });
+      return response.ok ? 'operational' : 'degraded';
+    } catch {
+      return 'down';
+    }
+  },
+
+  getComponentStatuses(apiStatus) {
+    const hasVideoElement = Boolean(document.getElementById('video'));
+    const videoEl = document.getElementById('video');
+    const hasCameraStream = Boolean(videoEl?.srcObject);
+    const hasSpeechApi = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const hasTts = Boolean(window.speechSynthesis);
+
+    return {
+      network: {
+        status: navigator.onLine ? 'operational' : 'down',
+        details: { online: navigator.onLine }
+      },
+      api: {
+        status: apiStatus,
+        details: { endpoint: '/api/health' }
+      },
+      camera: {
+        status: hasVideoElement ? (hasCameraStream ? 'operational' : 'degraded') : 'operational',
+        details: { required_on_page: hasVideoElement }
+      },
+      microphone: {
+        status: hasSpeechApi ? 'operational' : 'degraded',
+        details: { speech_recognition_available: hasSpeechApi }
+      },
+      tts: {
+        status: hasTts ? 'operational' : 'degraded',
+        details: { speech_synthesis_available: hasTts }
+      }
+    };
+  },
+
+  async sendHeartbeat() {
+    // Skip admin pages; this heartbeat is for kiosk station monitoring.
+    if (window.location.pathname.startsWith('/admin')) return;
+
+    const apiStatus = await this.pingApi();
+    const components = this.getComponentStatuses(apiStatus);
+
+    try {
+      await fetch('/api/admin/monitor/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kiosk_id: this.getKioskId(),
+          page: window.location.pathname,
+          components,
+          metadata: {
+            user_agent: navigator.userAgent,
+            language: navigator.language
+          }
+        })
+      });
+    } catch {
+      // Keep the UI functional even if monitor heartbeat fails.
+    }
+  },
+
+  start() {
+    if (this.timer) return;
+    this.sendHeartbeat();
+    this.timer = setInterval(() => this.sendHeartbeat(), 10000);
+  }
+};
+
+async function reportClientError(errorPayload) {
+  try {
+    await fetch('/api/admin/monitor/client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kiosk_id: KioskMonitor.getKioskId(),
+        page: window.location.pathname,
+        ...errorPayload
+      })
+    });
+  } catch {
+    // Do not throw from global handlers.
+  }
+}
+
+window.addEventListener('error', (event) => {
+  reportClientError({
+    category: 'frontend_error',
+    message: event.message || 'Unknown frontend error',
+    severity: 'error',
+    metadata: {
+      source: event.filename,
+      line: event.lineno,
+      column: event.colno
+    }
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  reportClientError({
+    category: 'frontend_promise_rejection',
+    message: String(event.reason?.message || event.reason || 'Unhandled rejection'),
+    severity: 'warning'
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  KioskMonitor.start();
+});

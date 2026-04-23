@@ -102,6 +102,15 @@
         <div class="nav-item" onclick="showView('stats')" id="nav-stats" style="margin-top:4px;">
           <span>📊</span> Statistics
         </div>
+        <div class="nav-item" onclick="showView('questions')" id="nav-questions" style="margin-top:4px;">
+          <span>❓</span> Fallback Questions
+        </div>
+        <div class="nav-item" onclick="showView('help-content')" id="nav-help-content" style="margin-top:4px;">
+          <span>🧭</span> Applicant Help Content
+        </div>
+        <div class="nav-item" onclick="showView('monitor')" id="nav-monitor" style="margin-top:4px;">
+          <span>🛠️</span> System Monitor
+        </div>
       </div>
 
       <!-- Stats summary in sidebar -->
@@ -199,6 +208,62 @@
           </div>
         </div>
       </div>
+
+      <!-- Fallback Questions view -->
+      <div id="view-questions" style="display:none;padding:32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+          <h2 style="font-size:24px;font-weight:700;">Fallback Interview Questions</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="loadFallbackQuestions()">↻ Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateQuestionModal()">＋ Add Question</button>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">These questions are used automatically when live AI/n8n prompts are unavailable.</div>
+        <div id="fallback-questions-list" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">Loading questions…</div>
+        </div>
+      </div>
+
+      <!-- Applicant Help Content view -->
+      <div id="view-help-content" style="display:none;padding:32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+          <h2 style="font-size:24px;font-weight:700;">Applicant Help Content</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="loadApplicantHelpContentAdmin()">↻ Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateHelpContentModal()">＋ Add Help Content</button>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">REQ-4 support: manage simplified instructions, steps, and visual guides shown on applicant-facing pages.</div>
+        <div id="help-content-list" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">Loading help content…</div>
+        </div>
+      </div>
+
+      <!-- System Monitor view -->
+      <div id="view-monitor" style="display:none;padding:32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+          <h2 style="font-size:24px;font-weight:700;">Real-Time System Monitor</h2>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="badge badge-blue" id="monitor-connection">Connecting…</span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshMonitorData()">↻ Refresh</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:14px;margin-bottom:18px;" id="backend-components-grid"></div>
+
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <div class="section-eyebrow" style="color:var(--amber);">Failure Alerts & Maintenance Log</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="loadFailureLogs()">↻ Reload Failures</button>
+              <button class="btn btn-danger btn-sm" onclick="clearAllFailures()">🧹 Clear All Errors</button>
+            </div>
+          </div>
+          <div id="failure-log-list" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="color:var(--text3);">Loading failures…</div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </div>
@@ -224,6 +289,8 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
       <h3 style="font-size:24px;font-weight:700;" id="detail-title">Applicant Detail</h3>
       <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost btn-sm" onclick="printInterviewSummary()">🖨 Print Summary</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportInterviewSummary()">⬇ Export Summary</button>
         <div class="badge badge-green" id="detail-status-badge">Completed</div>
         <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-detail')">✕ Close</button>
       </div>
@@ -281,6 +348,7 @@
 
 <script src="/js/app.js"></script>
 <script src="/js/image-handler.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
 let allApplicants = [];
 let currentFilter = 'all';
@@ -288,6 +356,11 @@ let sortField = 'created_at';
 let sortDir = -1;
 let currentApplicantId = null;
 let currentApplicantDetail = null;  // Store full detail for document image access
+let fallbackQuestions = [];
+let helpContentRows = [];
+let monitorSource = null;
+let latestMonitorSnapshot = null;
+let failureRows = [];
 
 // Auth check
 const adminUser = JSON.parse(sessionStorage.getItem('kk_admin') || 'null');
@@ -298,6 +371,10 @@ window.addEventListener('DOMContentLoaded', () => {
   startClock('clock');
   loadStats();
   loadApplicants();
+  loadFallbackQuestions();
+  loadApplicantHelpContentAdmin();
+  refreshMonitorData();
+  connectMonitorStream();
 });
 
 async function loadStats() {
@@ -666,6 +743,89 @@ async function saveEdit() {
       });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Save failed');
+    } else if (editState.type === 'fallback-create') {
+      const payload = {
+        question_index: Number(document.getElementById('edit-fq-index')?.value || 0),
+        label: document.getElementById('edit-fq-label')?.value?.trim(),
+        text: document.getElementById('edit-fq-text')?.value?.trim()
+      };
+      if (!payload.label || !payload.text) {
+        alert('Label and text are required.');
+        return;
+      }
+      const res = await fetch(API.BASE + '/admin/fallback-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+      await loadFallbackQuestions();
+    } else if (editState.type === 'fallback-edit') {
+      const payload = {
+        question_index: Number(document.getElementById('edit-fq-index')?.value || 0),
+        label: document.getElementById('edit-fq-label')?.value?.trim(),
+        text: document.getElementById('edit-fq-text')?.value?.trim(),
+        is_active: Boolean(document.getElementById('edit-fq-active')?.checked)
+      };
+      if (!payload.label || !payload.text) {
+        alert('Label and text are required.');
+        return;
+      }
+      const res = await fetch(API.BASE + '/admin/fallback-questions/' + editState.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+      await loadFallbackQuestions();
+    } else if (editState.type === 'help-create') {
+      const payload = {
+        screen_key: document.getElementById('edit-hc-screen')?.value?.trim(),
+        title: document.getElementById('edit-hc-title')?.value?.trim(),
+        short_intro: document.getElementById('edit-hc-intro')?.value?.trim(),
+        steps: document.getElementById('edit-hc-steps')?.value || '',
+        visual_guide: document.getElementById('edit-hc-visual')?.value?.trim(),
+        tips: document.getElementById('edit-hc-tips')?.value || '',
+        display_order: Number(document.getElementById('edit-hc-order')?.value || 0),
+        is_active: Boolean(document.getElementById('edit-hc-active')?.checked)
+      };
+      if (!payload.screen_key || !payload.title) {
+        alert('Screen key and title are required.');
+        return;
+      }
+      const res = await fetch(API.BASE + '/admin/help-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+      await loadApplicantHelpContentAdmin();
+    } else if (editState.type === 'help-edit') {
+      const payload = {
+        screen_key: document.getElementById('edit-hc-screen')?.value?.trim(),
+        title: document.getElementById('edit-hc-title')?.value?.trim(),
+        short_intro: document.getElementById('edit-hc-intro')?.value?.trim(),
+        steps: document.getElementById('edit-hc-steps')?.value || '',
+        visual_guide: document.getElementById('edit-hc-visual')?.value?.trim(),
+        tips: document.getElementById('edit-hc-tips')?.value || '',
+        display_order: Number(document.getElementById('edit-hc-order')?.value || 0),
+        is_active: Boolean(document.getElementById('edit-hc-active')?.checked)
+      };
+      if (!payload.screen_key || !payload.title) {
+        alert('Screen key and title are required.');
+        return;
+      }
+      const res = await fetch(API.BASE + '/admin/help-content/' + editState.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Save failed');
+      await loadApplicantHelpContentAdmin();
     }
     closeModal('modal-edit');
     await loadApplicants();
@@ -692,7 +852,7 @@ async function deleteDocument(docId) {
 }
 
 function showView(v) {
-  ['applicants','stats'].forEach(id => {
+  ['applicants','stats','questions','help-content','monitor'].forEach(id => {
     document.getElementById('view-' + id).style.display = id === v ? 'block' : 'none';
     document.getElementById('nav-' + id).classList.toggle('active', id === v);
   });
@@ -760,6 +920,489 @@ function viewDocumentImage(docId, docLabel, hasImage) {
   `;
   
   modal.classList.add('open');
+}
+
+async function loadFallbackQuestions() {
+  const list = document.getElementById('fallback-questions-list');
+  list.innerHTML = '<div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">Loading questions…</div>';
+  try {
+    const res = await API.get('/admin/fallback-questions');
+    if (!res.success) throw new Error(res.error || 'Failed to fetch fallback questions');
+    fallbackQuestions = res.data || [];
+    renderFallbackQuestions();
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">${e.message || 'Failed to load questions.'}</div>`;
+  }
+}
+
+function renderFallbackQuestions() {
+  const list = document.getElementById('fallback-questions-list');
+  if (!fallbackQuestions.length) {
+    list.innerHTML = '<div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">No fallback questions configured yet.</div>';
+    return;
+  }
+
+  list.innerHTML = fallbackQuestions.map((q) => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="badge badge-blue">Q${Number(q.question_index) + 1}</div>
+          <div style="font-size:16px;font-weight:700;">${q.label}</div>
+          <div class="badge ${q.is_active ? 'badge-green' : 'badge-amber'}">${q.is_active ? 'Active' : 'Inactive'}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditQuestionModal('${q.id}')">✏️ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteFallbackQuestion('${q.id}')">🗑 Delete</button>
+        </div>
+      </div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.6;">${q.text}</div>
+    </div>
+  `).join('');
+}
+
+function openCreateQuestionModal() {
+  editState = { type: 'fallback-create', id: null };
+  document.getElementById('edit-title').textContent = 'Add Fallback Question';
+  document.getElementById('edit-body').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Question Index (starts at 0)</label>
+        <input id="edit-fq-index" type="number" min="0" value="${fallbackQuestions.length}" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Label</label>
+        <input id="edit-fq-label" type="text" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Question Text</label>
+        <textarea id="edit-fq-text" rows="5" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);"></textarea>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+function openEditQuestionModal(id) {
+  const q = fallbackQuestions.find((item) => item.id === id);
+  if (!q) return;
+  editState = { type: 'fallback-edit', id };
+  document.getElementById('edit-title').textContent = 'Edit Fallback Question';
+  document.getElementById('edit-body').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Question Index</label>
+        <input id="edit-fq-index" type="number" min="0" value="${q.question_index}" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Label</label>
+        <input id="edit-fq-label" type="text" value="${q.label}" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Question Text</label>
+        <textarea id="edit-fq-text" rows="5" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">${q.text}</textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-top:4px;">
+        <input type="checkbox" id="edit-fq-active" ${q.is_active ? 'checked' : ''}>
+        Active
+      </label>
+    </div>
+  `;
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+async function deleteFallbackQuestion(id) {
+  if (!window.confirm('Delete this fallback question?')) return;
+  try {
+    const response = await fetch(API.BASE + `/admin/fallback-questions/${id}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Delete failed');
+    await loadFallbackQuestions();
+  } catch (e) {
+    alert(e.message || 'Failed to delete question.');
+  }
+}
+
+async function loadApplicantHelpContentAdmin() {
+  const list = document.getElementById('help-content-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">Loading help content…</div>';
+  try {
+    const res = await API.get('/admin/help-content');
+    if (!res.success) throw new Error(res.error || 'Failed to fetch help content');
+    helpContentRows = res.data || [];
+    renderApplicantHelpContentAdmin();
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">${e.message || 'Failed to load help content.'}</div>`;
+  }
+}
+
+function renderApplicantHelpContentAdmin() {
+  const list = document.getElementById('help-content-list');
+  if (!list) return;
+  if (!helpContentRows.length) {
+    list.innerHTML = '<div style="color:var(--text3);padding:24px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;">No help content configured yet.</div>';
+    return;
+  }
+
+  list.innerHTML = helpContentRows.map((row) => {
+    const stepCount = Array.isArray(row.steps) ? row.steps.length : 0;
+    const tipCount = Array.isArray(row.tips) ? row.tips.length : 0;
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="badge badge-blue">${row.screen_key}</div>
+            <div style="font-size:16px;font-weight:700;">${row.title}</div>
+            <div class="badge ${row.is_active ? 'badge-green' : 'badge-amber'}">${row.is_active ? 'Active' : 'Inactive'}</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="openEditHelpContentModal('${row.id}')">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteHelpContent('${row.id}')">🗑 Delete</button>
+          </div>
+        </div>
+        <div style="font-size:14px;color:var(--text2);margin-bottom:8px;">${row.short_intro || 'No intro provided.'}</div>
+        <div style="font-size:12px;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap;">
+          <span>Order: ${Number(row.display_order || 0)}</span>
+          <span>Steps: ${stepCount}</span>
+          <span>Tips: ${tipCount}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function helpContentEditorForm(row = {}) {
+  const steps = Array.isArray(row.steps) ? row.steps.join('\n') : '';
+  const tips = Array.isArray(row.tips) ? row.tips.join('\n') : '';
+  const screen = row.screen_key || 'welcome';
+  return `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Screen Key</label>
+          <select id="edit-hc-screen" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+            ${['welcome','profile','scan','interview','summary'].map((key) => `<option value="${key}" ${screen === key ? 'selected' : ''}>${key}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Display Order</label>
+          <input id="edit-hc-order" type="number" min="0" value="${Number(row.display_order || 0)}" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Title</label>
+        <input id="edit-hc-title" type="text" value="${row.title || ''}" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Short Intro</label>
+        <textarea id="edit-hc-intro" rows="2" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">${row.short_intro || ''}</textarea>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Steps (one per line)</label>
+        <textarea id="edit-hc-steps" rows="5" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">${steps}</textarea>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Visual Guide</label>
+        <textarea id="edit-hc-visual" rows="2" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">${row.visual_guide || ''}</textarea>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);font-family:var(--mono);">Tips (one per line)</label>
+        <textarea id="edit-hc-tips" rows="4" style="width:100%;margin-top:6px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);">${tips}</textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-top:4px;">
+        <input type="checkbox" id="edit-hc-active" ${row.is_active === false ? '' : 'checked'}>
+        Active
+      </label>
+    </div>
+  `;
+}
+
+function openCreateHelpContentModal() {
+  editState = { type: 'help-create', id: null };
+  document.getElementById('edit-title').textContent = 'Add Help Content';
+  document.getElementById('edit-body').innerHTML = helpContentEditorForm({ screen_key: 'welcome', is_active: true });
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+function openEditHelpContentModal(id) {
+  const row = helpContentRows.find((item) => item.id === id);
+  if (!row) return;
+  editState = { type: 'help-edit', id };
+  document.getElementById('edit-title').textContent = 'Edit Help Content';
+  document.getElementById('edit-body').innerHTML = helpContentEditorForm(row);
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+async function deleteHelpContent(id) {
+  if (!window.confirm('Delete this help content entry?')) return;
+  try {
+    const response = await fetch(API.BASE + `/admin/help-content/${id}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Delete failed');
+    await loadApplicantHelpContentAdmin();
+  } catch (e) {
+    alert(e.message || 'Failed to delete help content.');
+  }
+}
+
+async function refreshMonitorData() {
+  try {
+    const res = await API.get('/admin/monitor/status');
+    if (res.success) {
+      latestMonitorSnapshot = res.data;
+      renderMonitorSnapshot();
+    }
+  } catch (e) {}
+  await loadFailureLogs();
+}
+
+function statusPill(status) {
+  const s = String(status || 'unknown').toLowerCase();
+  if (s === 'operational') return '<span class="badge badge-green">Operational</span>';
+  if (s === 'degraded') return '<span class="badge badge-amber">Degraded</span>';
+  if (s === 'down') return '<span class="badge badge-danger">Down</span>';
+  return '<span class="badge">Unknown</span>';
+}
+
+function renderMonitorSnapshot() {
+  const backendGrid = document.getElementById('backend-components-grid');
+  const data = latestMonitorSnapshot || { backend: {} };
+
+  const backendEntries = Object.entries(data.backend || {});
+  backendGrid.innerHTML = backendEntries.map(([name, value]) => `
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;text-transform:capitalize;">${name.replace(/_/g, ' ')}</div>
+        ${statusPill(value.status)}
+      </div>
+      <div style="font-size:12px;color:var(--text3);font-family:var(--mono);">Last seen: ${formatDate(value.last_seen_at)}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px;">${value.details?.message || ''}</div>
+    </div>
+  `).join('') || '<div style="color:var(--text3);">No backend components reported yet.</div>';
+}
+
+async function loadFailureLogs() {
+  const list = document.getElementById('failure-log-list');
+  try {
+    const res = await API.get('/admin/monitor/failures?limit=80');
+    if (!res.success) throw new Error(res.error || 'Failed to load failures');
+    failureRows = res.data || [];
+    renderFailureLogs();
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);">${e.message || 'Failed to load failure logs.'}</div>`;
+  }
+}
+
+function renderFailureLogs() {
+  const list = document.getElementById('failure-log-list');
+  if (!failureRows.length) {
+    list.innerHTML = '<div style="color:var(--text3);">No failures recorded.</div>';
+    return;
+  }
+
+  list.innerHTML = failureRows.map((row) => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="badge ${row.severity === 'critical' ? 'badge-danger' : row.severity === 'warning' ? 'badge-amber' : 'badge-blue'}">${row.severity || 'error'}</span>
+          <span style="font-size:12px;color:var(--text3);font-family:var(--mono);">${row.component}</span>
+          ${row.resolved ? '<span class="badge badge-green">Resolved</span>' : '<span class="badge badge-amber">Open</span>'}
+        </div>
+        <div style="font-size:12px;color:var(--text3);">${formatDate(row.created_at)}</div>
+      </div>
+      <div style="margin-top:8px;font-size:14px;color:var(--text2);">${row.message}</div>
+      ${row.resolved ? '' : `<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" onclick="resolveFailure('${row.id}')">✔ Mark Resolved</button></div>`}
+    </div>
+  `).join('');
+}
+
+async function clearAllFailures() {
+  if (!failureRows.length) {
+    alert('No errors to clear.');
+    return;
+  }
+
+  const ok = window.confirm('Clear all errors from the maintenance log? This cannot be undone.');
+  if (!ok) return;
+
+  try {
+    const response = await fetch(API.BASE + '/admin/monitor/failures', { method: 'DELETE' });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Failed to clear errors');
+    await loadFailureLogs();
+  } catch (e) {
+    alert(e.message || 'Failed to clear errors.');
+  }
+}
+
+async function resolveFailure(id) {
+  try {
+    const response = await fetch(API.BASE + `/admin/monitor/failures/${id}/resolve`, { method: 'PATCH' });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Failed to resolve failure');
+    await loadFailureLogs();
+  } catch (e) {
+    alert(e.message || 'Failed to resolve failure.');
+  }
+}
+
+function buildInterviewSummaryText(applicant) {
+  const responses = (applicant?.responses || []).sort((a, b) => (a.question_index || 0) - (b.question_index || 0));
+  const documents = applicant?.documents || [];
+
+  const lines = [];
+  lines.push('KiosKonnekt Interview Summary');
+  lines.push('============================');
+  lines.push(`Applicant: ${applicant?.full_name || 'N/A'}`);
+  lines.push(`Email: ${applicant?.email || 'N/A'}`);
+  lines.push(`Program: ${applicant?.program || 'N/A'}`);
+  lines.push(`Senior High School: ${applicant?.senior_high_school || 'N/A'}`);
+  lines.push(`Status: ${applicant?.status || 'N/A'}`);
+  lines.push(`Generated At: ${new Date().toLocaleString()}`);
+  lines.push('');
+  lines.push(`Documents Submitted (${documents.length})`);
+  lines.push('-------------------------');
+  if (!documents.length) {
+    lines.push('No documents submitted.');
+  } else {
+    documents.forEach((doc, idx) => {
+      lines.push(`${idx + 1}. ${doc.document_label || doc.document_type || 'Document'}`);
+    });
+  }
+  lines.push('');
+  lines.push(`Interview Responses (${responses.length})`);
+  lines.push('-------------------------');
+  if (!responses.length) {
+    lines.push('No responses recorded.');
+  } else {
+    responses.forEach((response, idx) => {
+      lines.push(`Q${idx + 1}: ${response.question_label || 'Question'}`);
+      lines.push(`Question: ${response.question_text || ''}`);
+      lines.push(`Answer: ${response.answer_text || ''}`);
+      lines.push('');
+    });
+  }
+
+  return lines.join('\n');
+}
+
+function printInterviewSummary() {
+  if (!currentApplicantDetail) {
+    alert('Open an applicant detail first.');
+    return;
+  }
+
+  const summaryText = buildInterviewSummaryText(currentApplicantDetail).replace(/\n/g, '<br>');
+  const printWindow = window.open('', '_blank', 'width=960,height=720');
+  if (!printWindow) {
+    alert('Popup blocked. Please allow popups to print summary.');
+    return;
+  }
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Interview Summary - ${currentApplicantDetail.full_name || 'Applicant'}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 28px; line-height: 1.5; color: #111; }
+          h1 { margin: 0 0 14px; font-size: 22px; }
+          .summary { white-space: normal; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <h1>Interview Summary</h1>
+        <div class="summary">${summaryText}</div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+function exportInterviewSummary() {
+  if (!currentApplicantDetail) {
+    alert('Open an applicant detail first.');
+    return;
+  }
+
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('PDF exporter failed to load. Please refresh and try again.');
+    return;
+  }
+
+  const safeName = String(currentApplicantDetail.full_name || 'applicant')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+  const fileName = `${safeName || 'applicant'}-interview-summary.pdf`;
+  const summaryText = buildInterviewSummaryText(currentApplicantDetail);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const margin = 42;
+  const lineHeight = 18;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const maxWidth = pageWidth - margin * 2;
+  const maxY = pageHeight - margin;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('KiosKonnekt Interview Summary', margin, margin);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  let y = margin + 24;
+
+  const lines = doc.splitTextToSize(summaryText, maxWidth);
+  lines.forEach((line) => {
+    if (y > maxY) {
+      doc.addPage();
+      y = margin;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+    }
+    doc.text(line, margin, y);
+    y += lineHeight;
+  });
+
+  doc.save(fileName);
+}
+
+function connectMonitorStream() {
+  const badge = document.getElementById('monitor-connection');
+  if (monitorSource) {
+    monitorSource.close();
+    monitorSource = null;
+  }
+
+  try {
+    monitorSource = new EventSource('/api/admin/monitor/stream');
+    badge.textContent = 'Live';
+    badge.className = 'badge badge-green';
+
+    monitorSource.addEventListener('status-update', (event) => {
+      const entry = JSON.parse(event.data);
+      if (entry?.payload?.scope === 'backend' && latestMonitorSnapshot?.backend) {
+        latestMonitorSnapshot.backend[entry.payload.component] = entry.payload.value;
+      }
+      renderMonitorSnapshot();
+    });
+
+    monitorSource.addEventListener('failure', async () => {
+      await loadFailureLogs();
+    });
+
+    monitorSource.onerror = () => {
+      badge.textContent = 'Disconnected';
+      badge.className = 'badge badge-amber';
+    };
+  } catch (e) {
+    badge.textContent = 'Unavailable';
+    badge.className = 'badge badge-danger';
+  }
 }
 
 function showHelp() {
