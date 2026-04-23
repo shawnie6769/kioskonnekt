@@ -726,7 +726,8 @@ async function captureDoc() {
 
 function skipDocs() {
   stopCamera();
-  navigateTo('/interview');
+  Session.set(SESSION.DOCUMENTS, []);
+  navigateTo('/interview-transition');
 }
 
 async function proceedToInterview() {
@@ -744,7 +745,7 @@ async function proceedToInterview() {
       };
     }))
   );
-  navigateTo('/interview');
+  navigateTo('/interview-transition');
 }
 
 async function stopCamera() {

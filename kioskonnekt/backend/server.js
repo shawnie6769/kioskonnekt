@@ -44,6 +44,7 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/welcome.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/profile.html')));
 app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/scan.html')));
+app.get('/interview-transition', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/interview-transition.html')));
 app.get('/interview', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/interview.html')));
 app.get('/summary', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/summary.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '../frontend/pages/admin.html')));
