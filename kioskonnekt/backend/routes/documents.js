@@ -9,144 +9,111 @@ const DOCUMENT_LABELS = {
   good_moral: 'Good Moral Certificate'
 };
 
-// PSA-only profile-based validator. This avoids keyword matching and instead
-// scores OCR layout/shape signals that are typical for a real PSA document.
-const PSA_PROFILE = {
-  minWords: 90,
-  minLines: 18,
-  minAvgConfidence: 45,
-  scoreThreshold: 0.72,
-  signals: {
-    wordCount: { min: 120, max: 650, weight: 0.2 },
-    lineCount: { min: 22, max: 95, weight: 0.2 },
-    digitRatio: { min: 0.06, max: 0.35, weight: 0.12 },
-    uppercaseRatio: { min: 0.15, max: 0.75, weight: 0.12 },
-    avgWordLength: { min: 3.2, max: 8.5, weight: 0.1 },
-    wordsPerLine: { min: 2.8, max: 11, weight: 0.14 },
-    longLineRatio: { min: 0.2, max: 0.9, weight: 0.12 }
-  }
-};
+// ── Helper: run OCR on base64 image using Mistral Vision ─────────────────────
+async function runOCR(base64Image, documentType) {
+  const apiKey = process.env.MISTRAL_API_KEY;
 
-// ── Helper: run OCR on base64 image ──────────────────────────────────────────
-async function runOCR(base64Image) {
-  // OCR is simulated in this prototype when OCR engine is not installed.
+  if (!apiKey) {
+    console.warn('⚠️  MISTRAL_API_KEY not set — falling back to simulated OCR.');
+    return fallbackOCR(base64Image);
+  }
+
+  // Strip data URI prefix if present, then rebuild a clean data URI
+  const rawBase64 = String(base64Image || '').replace(/^data:image\/\w+;base64,/, '');
+  const dataUri = `data:image/jpeg;base64,${rawBase64}`;
+
+  const label = DOCUMENT_LABELS[documentType] || documentType;
+  const prompt = `You are an OCR engine. Extract ALL text from this image of a "${label}".
+Return ONLY the extracted text, preserving line breaks. Do not add commentary, labels, or explanations.
+If the document is unreadable or blank, reply with exactly: UNREADABLE`;
+
+  try {
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'pixtral-12b-2409',   // Mistral's vision model
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: dataUri }
+              },
+              {
+                type: 'text',
+                text: prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Mistral API error ${response.status}: ${errBody}`);
+    }
+
+    const json = await response.json();
+    const extractedText = json.choices?.[0]?.message?.content?.trim() || '';
+
+    if (!extractedText || extractedText === 'UNREADABLE') {
+      console.warn('⚠️  Mistral returned no readable text.');
+      return {
+        text: '',
+        confidence: 0,
+        readable: false,
+        words: [],
+        lines: []
+      };
+    }
+
+    const lines = extractedText.split('\n').filter(l => l.trim().length > 0);
+    const words = extractedText.split(/\s+/).filter(w => w.length > 0);
+
+    console.log(`✅ Mistral OCR completed. Readable: true, Words: ${words.length}`);
+
+    return {
+      text: extractedText,
+      confidence: 95,   // Mistral doesn't return confidence scores; use a high fixed value
+      readable: true,
+      words,
+      lines
+    };
+
+  } catch (err) {
+    console.error('❌ Mistral OCR failed:', err.message);
+    return fallbackOCR(base64Image);
+  }
+}
+
+// ── Helper: fallback OCR (no API key or API failure) ─────────────────────────
+function fallbackOCR(base64Image) {
   const imageData = String(base64Image || '').replace(/^data:image\/\w+;base64,/, '');
-  const approxSize = imageData.length;
   return {
     text: '',
-    confidence: approxSize > 0 ? 100 : 0,
+    confidence: imageData.length > 0 ? 100 : 0,
+    readable: false,
     words: [],
     lines: []
   };
 }
 
-function getSignalScore(value, min, max) {
-  if (value >= min && value <= max) return 1;
-  const range = Math.max(max - min, 1e-6);
-  if (value < min) {
-    const distance = min - value;
-    return Math.max(0, 1 - distance / range);
-  }
-  const distance = value - max;
-  return Math.max(0, 1 - distance / range);
-}
-
-function extractPSAFeatures(ocrData) {
-  const words = ocrData.words || [];
-  const lines = ocrData.lines || [];
-  const wordTexts = words.map((w) => String(w.text || '').trim()).filter(Boolean);
-  const allText = wordTexts.join(' ');
-  const charCount = allText.length || 1;
-
-  const digits = (allText.match(/\d/g) || []).length;
-  const uppers = (allText.match(/[A-Z]/g) || []).length;
-  const letters = (allText.match(/[A-Za-z]/g) || []).length || 1;
-
-  const totalWordLength = wordTexts.reduce((sum, txt) => sum + txt.length, 0);
-  const avgWordLength = wordTexts.length ? totalWordLength / wordTexts.length : 0;
-
-  const lineLengths = lines
-    .map((line) => String(line.text || '').trim().length)
-    .filter((len) => len > 0);
-  const longLineCount = lineLengths.filter((len) => len >= 28).length;
-  const longLineRatio = lineLengths.length ? longLineCount / lineLengths.length : 0;
-
-  return {
-    wordCount: wordTexts.length,
-    lineCount: lines.length,
-    avgConfidence: Number(ocrData.confidence || 0),
-    digitRatio: digits / charCount,
-    uppercaseRatio: uppers / letters,
-    avgWordLength,
-    wordsPerLine: lines.length ? wordTexts.length / lines.length : 0,
-    longLineRatio
-  };
-}
-
-function validatePSABirthCertificate(ocrData) {
-  const features = extractPSAFeatures(ocrData);
-
-  if (features.wordCount < PSA_PROFILE.minWords || features.lineCount < PSA_PROFILE.minLines) {
-    return {
-      valid: false,
-      message: '❌ PSA validation failed: document content is too sparse. Retake with full page in frame and better lighting.',
-      matchedSignals: [],
-      confidence: 0,
-      features
-    };
-  }
-
-  if (features.avgConfidence < PSA_PROFILE.minAvgConfidence) {
-    return {
-      valid: false,
-      message: '❌ PSA validation failed: OCR quality is too low. Retake with less blur and glare.',
-      matchedSignals: [],
-      confidence: Math.round(features.avgConfidence),
-      features
-    };
-  }
-
-  const signalScores = Object.entries(PSA_PROFILE.signals).map(([name, cfg]) => ({
-    name,
-    weight: cfg.weight,
-    score: getSignalScore(features[name], cfg.min, cfg.max)
-  }));
-
-  const totalWeight = signalScores.reduce((sum, s) => sum + s.weight, 0) || 1;
-  const weightedScore = signalScores.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight;
-  const confidence = Math.round(weightedScore * 100);
-
-  const matchedSignals = signalScores
-    .filter((s) => s.score >= 0.9)
-    .map((s) => s.name);
-
-  if (weightedScore >= PSA_PROFILE.scoreThreshold) {
-    return {
-      valid: true,
-      message: '✅ PSA Birth Certificate pattern validated.',
-      matchedSignals,
-      confidence,
-      features
-    };
-  }
-
-  return {
-    valid: false,
-    message: '❌ This capture does not match a PSA Birth Certificate pattern. Scan the original PSA document flat and fully visible.',
-    matchedSignals,
-    confidence,
-    features
-  };
-}
-
-// ── Helper: validate OCR result by document type ─────────────────────────────
+// ── Helper: validate document ─────────────────────────────────────────────────
 function validateDocument(ocrData, documentType) {
-  // All document types are accepted without strict validation
+  // For capstone purposes, all documents are accepted as long as OCR ran
+  // You can add stricter keyword validation per doc type here later
   return {
     valid: true,
     message: 'Document accepted.',
     matchedSignals: [],
-    confidence: 100
+    confidence: ocrData.confidence || 100
   };
 }
 
@@ -162,20 +129,17 @@ router.post('/', async (req, res) => {
     let ocrText = '';
     let validationResult = { valid: true, message: 'No image provided - skipping OCR.', matchedSignals: [] };
 
-    // Run OCR + validation if an image was provided
     if (image_data) {
       try {
-        const ocrData = await runOCR(image_data);
+        const ocrData = await runOCR(image_data, document_type);
         ocrText = ocrData.text;
         validationResult = validateDocument(ocrData, document_type);
       } catch (ocrErr) {
         console.error('OCR error:', ocrErr.message);
-        // Don't block saving — just flag it
         validationResult = { valid: false, message: 'OCR processing failed. Please retake the photo.', matchedSignals: [] };
       }
     }
 
-    // Reject invalid documents — don't save to DB
     if (!validationResult.valid) {
       return res.status(422).json({
         success: false,
@@ -187,12 +151,12 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Save to database
     const { data, error } = await dbInsert('documents', {
       applicant_id,
       document_type,
       document_label: document_label || DOCUMENT_LABELS[document_type] || document_type,
       image_data: image_data || null,
+      ocr_text: ocrText || null,
       ocr_simulated: false,
       verified: true
     });
@@ -213,7 +177,6 @@ router.post('/', async (req, res) => {
 });
 
 // ── POST /api/documents/ocr-check — OCR + validate without saving ────────────
-// Use this to preview validation before final submission
 router.post('/ocr-check', async (req, res) => {
   try {
     const { document_type, image_data } = req.body;
@@ -222,7 +185,7 @@ router.post('/ocr-check', async (req, res) => {
       return res.status(400).json({ success: false, error: 'document_type and image_data are required.' });
     }
 
-    const ocrData = await runOCR(image_data);
+    const ocrData = await runOCR(image_data, document_type);
     const ocrText = ocrData.text;
     const validationResult = validateDocument(ocrData, document_type);
 

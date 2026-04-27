@@ -142,22 +142,9 @@
       // requireSession handles redirect to '/'
     }
 
-    const DELAY_MS = 90000;
     const TARGET_PATH = '/interview';
-    const endAt = Date.now() + DELAY_MS;
 
-    function updateUI() {
-      const now = Date.now();
-      const remaining = Math.max(0, endAt - now);
-
-      if (remaining <= 0) {
-        window.clearInterval(timer);
-        navigateTo(TARGET_PATH);
-      }
-    }
-
-    updateUI();
-    const timer = window.setInterval(updateUI, 200);
+    navigateTo(TARGET_PATH);
   </script>
 </body>
 </html>

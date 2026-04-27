@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { dbInsert, dbSelect, dbSelectOne, dbUpdate } = require('../db/supabase');
-const { callN8nWorkflow, isN8nEnabled } = require('../services/n8n');
+const { generateNextQuestion, generateFinalSummary } = require('../services/openrouter');
 
 const DEFAULT_FALLBACK_QUESTIONS = [
   {
@@ -29,37 +29,35 @@ const DEFAULT_FALLBACK_QUESTIONS = [
 
 // Tagalog translations for fallback questions
 const TRANSLATIONS_TL = [
-    {
-        label: 'Ipakilala ang Iyong Sarili',
-        text: "Kumusta, ako si Konnekt at ako ang gagabay sa iyo sa panayam na ito. Magsimula tayo sa isang simpleng tanong: maaari mo bang ipakilala ang iyong sarili? Ikuwento mo nang kaunti ang iyong pinagmulan, mga interes, at kung ano ang natatangi sa iyo."
-    },
-    {
-        label: 'Bakit ang Programang Ito?',
-        text: "Salamat. Nais kong mas makilala ang iyong akademikong direksyon. Ano ang nag-udyok sa iyo na piliin ang programang ito sa aming unibersidad? At ano ang mga bagay na sa tingin mo ay akma sa iyo sa larangang ito?"
-    },
-    {
-        label: 'Iyong mga Lakas bilang Mag-aaral',
-        text: "Mabuti iyon. Ang bawat mag-aaral ay may kani-kaniyang lakas na naiaambag sa pagkatuto. Ano-ano ang iyong mga katangian, gawi, o kasanayan na nakatutulong sa iyong magtagumpay bilang isang mag-aaral?"
-    },
-    {
-        label: 'Pagharap sa mga Hamon',
-        text: "Pag-usapan naman natin kung paano mo hinaharap ang mga pagsubok. Kapag nahihirapan ka sa pag-aaral o may mga bagay na hindi naaayon sa plano, paano mo ito hinaharap at nalalampasan?"
-    },
-    {
-        label: 'Mga Layunin Pagkatapos Magtapos',
-        text: "Magaling. Para sa huling tanong: sa pagtingin sa hinaharap, ano ang iyong mga layunin pagkatapos mong makapagtapos? Saan mo nakikita ang iyong sarili sa loob ng lima hanggang sampung taon?"
-    }
+  {
+    label: 'Ipakilala ang Iyong Sarili',
+    text: "Kumusta, ako si Konnekt at ako ang gagabay sa iyo sa panayam na ito. Magsimula tayo sa isang simpleng tanong: maaari mo bang ipakilala ang iyong sarili? Ikuwento mo nang kaunti ang iyong pinagmulan, mga interes, at kung ano ang natatangi sa iyo."
+  },
+  {
+    label: 'Bakit ang Programang Ito?',
+    text: "Salamat. Nais kong mas makilala ang iyong akademikong direksyon. Ano ang nag-udyok sa iyo na piliin ang programang ito sa aming unibersidad? At ano ang mga bagay na sa tingin mo ay akma sa iyo sa larangang ito?"
+  },
+  {
+    label: 'Iyong mga Lakas bilang Mag-aaral',
+    text: "Mabuti iyon. Ang bawat mag-aaral ay may kani-kaniyang lakas na naiaambag sa pagkatuto. Ano-ano ang iyong mga katangian, gawi, o kasanayan na nakatutulong sa iyong magtagumpay bilang isang mag-aaral?"
+  },
+  {
+    label: 'Pagharap sa mga Hamon',
+    text: "Pag-usapan naman natin kung paano mo hinaharap ang mga pagsubok. Kapag nahihirapan ka sa pag-aaral o may mga bagay na hindi naaayon sa plano, paano mo ito hinaharap at nalalampasan?"
+  },
+  {
+    label: 'Mga Layunin Pagkatapos Magtapos',
+    text: "Magaling. Para sa huling tanong: sa pagtingin sa hinaharap, ano ang iyong mga layunin pagkatapos mong makapagtapos? Saan mo nakikita ang iyong sarili sa loob ng lima hanggang sampung taon?"
+  }
 ];
 
 async function getActiveFallbackQuestions() {
   try {
     const { data, error } = await dbSelect('fallback_questions', { is_active: true });
     if (error) return DEFAULT_FALLBACK_QUESTIONS;
-
     const normalized = (data || [])
       .sort((a, b) => Number(a.question_index || 0) - Number(b.question_index || 0))
       .map((q) => ({ label: q.label, text: q.text }));
-
     return normalized.length > 0 ? normalized : DEFAULT_FALLBACK_QUESTIONS;
   } catch (err) {
     return DEFAULT_FALLBACK_QUESTIONS;
@@ -81,15 +79,44 @@ async function buildInterviewContext(interviewId, applicantId) {
     dbSelect('responses', { interview_id: interviewId }),
     dbSelect('documents', { applicant_id: applicantId })
   ]);
-
   const sortedResponses = (responses || []).sort((a, b) => a.question_index - b.question_index);
-
   return {
     interview: interview || null,
     applicant: applicant || null,
     responses: sortedResponses,
     documents: documents || []
   };
+}
+
+// ── Helper: get next question from Gemini with fallback ──────────────────────
+async function getNextQuestion(questionIndex, totalQuestions, context, locale) {
+  const wantFil = locale && (locale.startsWith('fil') || locale.startsWith('tl'));
+
+  // Try Gemini first (only if API key is set)
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const aiQuestion = await generateNextQuestion(
+        questionIndex,
+        totalQuestions,
+        context.applicant,
+        context.responses,
+        context.documents
+      );
+      if (aiQuestion) {
+        console.log(`✅ Gemini generated Q${questionIndex + 1}:`, aiQuestion.label);
+        return { ...aiQuestion, source: "groq" };
+      }
+    } catch (err) {
+      console.error('Gemini question generation failed, using fallback:', err.message);
+    }
+  }
+
+  // Fallback to hardcoded questions
+  const fallback = await getFallbackQuestion(questionIndex);
+  if (wantFil && TRANSLATIONS_TL[questionIndex]) {
+    return { ...TRANSLATIONS_TL[questionIndex], source: 'fallback' };
+  }
+  return { ...fallback, source: 'fallback' };
 }
 
 // POST /api/interviews — start new interview
@@ -108,7 +135,7 @@ router.post('/', async (req, res) => {
       total_questions: effectiveTotalQuestions,
       questions_answered: 0,
       status: 'in_progress',
-      ai_model: isN8nEnabled() ? 'n8n' : 'rule-based'
+      ai_model: process.env.GROQ_API_KEY ? 'groq' : 'rule-based'
     });
     if (error) throw error;
     res.status(201).json({ success: true, data });
@@ -117,10 +144,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/interviews/:id/next-question — get next question (n8n/fallback)
+// POST /api/interviews/:id/next-question — get next question
 router.post('/:id/next-question', async (req, res) => {
   try {
-    const { applicant_id } = req.body;
+    const { applicant_id, locale } = req.body;
     if (!applicant_id) return res.status(400).json({ success: false, error: 'applicant_id required' });
 
     const context = await buildInterviewContext(req.params.id, applicant_id);
@@ -133,85 +160,18 @@ router.post('/:id/next-question', async (req, res) => {
       return res.json({ success: true, data: { done: true, question_index: questionIndex } });
     }
 
-      const fallback = await getFallbackQuestion(questionIndex);
-      const n8nResult = await callN8nWorkflow('next_question', {
-          interview_id: req.params.id,
-          question_index: questionIndex,
-          total_questions: totalQuestions,
-          applicant: context.applicant,
-          responses: context.responses,
-          documents: context.documents
-      });
+    const selected = await getNextQuestion(questionIndex, totalQuestions, context, locale || '');
 
-      // ✅ Add debugging for second question
-      if (questionIndex === 1) {
-          console.log('🔴 DEBUG Q2: n8nResult.success:', n8nResult.success);
-          console.log('🔴 DEBUG Q2: n8nResult.question:', n8nResult.question);
-          console.log('🔴 DEBUG Q2: n8nResult.error:', n8nResult.error);
-          console.log('🔴 DEBUG Q2: Full n8nResult:', JSON.stringify(n8nResult, null, 2));
+    res.json({
+      success: true,
+      data: {
+        done: false,
+        question_index: questionIndex,
+        question_label: selected.label,
+        question_text: selected.text,
+        source: selected.source
       }
-
-      // ✅ Use n8n's dynamic resume URL if available
-      const selected = n8nResult.success && n8nResult.question
-          ? {
-              ...n8nResult.question,
-              source: 'n8n',
-              resumeUrl: n8nResult.data?.resumeUrl
-          }
-          : { ...fallback, source: 'fallback', resumeUrl: null };
-
-    // If client requested a locale and asked for Filipino, translate fallback questions
-    try {
-      const locale = (req.body && req.body.locale) ? String(req.body.locale).toLowerCase() : '';
-      const lang = locale.split('-')[0] || '';
-      const qidx = questionIndex;
-
-      const wantFil = locale.startsWith('fil') || locale.startsWith('tl');
-      if (wantFil && selected.source === 'fallback') {
-        const qidx = questionIndex;
-        if (TRANSLATIONS_TL[qidx]) {
-          selected.question_label = TRANSLATIONS_TL[qidx].label;
-          selected.question_text = TRANSLATIONS_TL[qidx].text;
-          selected.label = TRANSLATIONS_TL[qidx].label;
-          selected.text = TRANSLATIONS_TL[qidx].text;
-        } else if (lang) {
-            // Translate the selected content server-side regardless of source
-           try {
-              const target = (lang === 'fil') ? 'tl' : lang;
-               // Translate label and text (if present). Use source text if translation fails.
-              const labelToTranslate = selected.label || selected.question_label || '';
-              const textToTranslate = selected.text || selected.question_text || '';
-              const translatedLabel = labelToTranslate ? await translateText(labelToTranslate, target) : '';
-              const translatedText = textToTranslate ? await translateText(textToTranslate, target) : '';
-
-              if (translatedLabel) {
-                    selected.question_label = translatedLabel;
-                    selected.label = translatedLabel;
-              }
-              if (translatedText) {
-                    selected.question_text = translatedText;
-                    selected.text = translatedText;
-              }
-           } catch (err) {
-               // If translation fails, fall back to original text silently
-           }
-        }
-      }
-    } catch (e) {
-      // ignore translation errors and return selected as-is
-    }
-
-      res.json({
-          success: true,
-          data: {
-              done: false,
-              question_index: questionIndex,
-              question_label: selected.label,
-              question_text: selected.text,
-              source: selected.source,
-              resumeUrl: selected.resumeUrl
-          }
-      });
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -237,10 +197,11 @@ router.patch('/:id/complete', async (req, res) => {
 // POST /api/interviews/:id/responses — save a response
 router.post('/:id/responses', async (req, res) => {
   try {
-    const { applicant_id, question_index, question_label, question_text, answer_text, input_method } = req.body;
+    const { applicant_id, question_index, question_label, question_text, answer_text, input_method, locale } = req.body;
     if (!applicant_id || answer_text === undefined) {
       return res.status(400).json({ success: false, error: 'Missing fields' });
     }
+
     const word_count = answer_text.trim().split(/\s+/).filter(Boolean).length;
     const { data, error } = await dbInsert('responses', {
       interview_id: req.params.id,
@@ -254,46 +215,20 @@ router.post('/:id/responses', async (req, res) => {
     });
     if (error) throw error;
 
-    // ✅ NEW: Call webhook when first question is answered
-    if (question_index === 0 && process.env.N8N_WAIT_WEBHOOK_URL) {
-      fetch(process.env.N8N_WAIT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          applicant_id: applicant_id,
-          question_index: question_index,
-          answer: answer_text,
-          timestamp: new Date().toISOString()
-        })
-      }).catch(err => console.error('Wait node webhook failed:', err));
-    }
-
     await dbUpdate('interviews', req.params.id, { questions_answered: (question_index || 0) + 1 });
-    
-    // ✅ NEW: Fetch fresh context with the newly saved response
+
+    // Fetch fresh context and pre-generate next question
     const context = await buildInterviewContext(req.params.id, applicant_id);
     const totalQuestions = context.interview.total_questions || 5;
     const nextQuestionIndex = context.responses.length;
 
-    // ✅ NEW: Get next question immediately while context is fresh
     let nextQuestion = null;
     if (nextQuestionIndex < totalQuestions) {
-      const fallback = await getFallbackQuestion(nextQuestionIndex);
-      const n8nResult = await callN8nWorkflow('next_question', {
-        interview_id: req.params.id,
-        question_index: nextQuestionIndex,
-        total_questions: totalQuestions,
-        applicant: context.applicant,
-        responses: context.responses,
-        documents: context.documents
-      });
-      nextQuestion = n8nResult.success && n8nResult.question
-        ? { ...n8nResult.question, source: 'n8n' }
-        : { ...fallback, source: 'fallback' };
+      nextQuestion = await getNextQuestion(nextQuestionIndex, totalQuestions, context, locale || '');
     }
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       data: {
         response: data,
         nextQuestion: nextQuestion ? {
@@ -310,7 +245,7 @@ router.post('/:id/responses', async (req, res) => {
   }
 });
 
-// POST /api/interviews/:id/final-summary — get final summary (n8n/fallback)
+// POST /api/interviews/:id/final-summary — get final summary
 router.post('/:id/final-summary', async (req, res) => {
   try {
     const { applicant_id } = req.body;
@@ -322,17 +257,26 @@ router.post('/:id/final-summary', async (req, res) => {
     const firstName = context.applicant?.full_name?.split(' ')?.[0] || 'there';
     const fallbackSummary = `Excellent work, ${firstName}! You've completed all ${context.interview.total_questions || 5} interview questions. Your responses have been recorded. Please proceed to review your interview summary and submit your application.`;
 
-    const n8nResult = await callN8nWorkflow('final_summary', {
-      interview_id: req.params.id,
-      total_questions: context.interview.total_questions || 5,
-      applicant: context.applicant,
-      responses: context.responses,
-      documents: context.documents
-    });
+    let summary = fallbackSummary;
+    let source = 'fallback';
 
-    const summary = n8nResult.success && n8nResult.summary ? n8nResult.summary : fallbackSummary;
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const aiSummary = await generateFinalSummary(
+          context.applicant,
+          context.responses,
+          context.interview.total_questions || 5
+        );
+        if (aiSummary) {
+          summary = aiSummary;
+          source = 'gemini';
+        }
+      } catch (err) {
+        console.error('Gemini summary failed, using fallback:', err.message);
+      }
+    }
 
-    res.json({ success: true, data: { summary, source: n8nResult.success && n8nResult.summary ? 'n8n' : 'fallback' } });
+    res.json({ success: true, data: { summary, source } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

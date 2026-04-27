@@ -466,7 +466,7 @@ async function resolveQuestion(idx) {
         
         return dynamicQuestion;
       }
-    } catch (e) {}
+    } catch (e) { console.error('resolveQuestion failed:', e); }  
   }
 
   const fallback = (typeof getFallbackQuestion === 'function')
@@ -587,11 +587,20 @@ async function sendResponse() {
 
   if (state.interviewId) {
     try {
-      await API.post(`/interviews/${state.interviewId}/responses`, {
+      const saved = await API.post(`/interviews/${state.interviewId}/responses`, {
         applicant_id: Session.get(SESSION.APPLICANT).id,
         ...response
       });
-    } catch(e) {}
+
+      // If the backend already pre-generated the next question, cache it now
+      if (saved?.data?.nextQuestion && !saved.data.nextQuestion.done) {
+        const nq = saved.data.nextQuestion;
+        state.askedQuestions[nq.question_index] = {
+          label: nq.question_label,
+          text: nq.question_text
+        };
+      }
+    } catch(e) { console.error('Save response error:', e); }
   }
 
   document.getElementById(`dot-${qIdx}`)?.classList.replace('active', 'done');
